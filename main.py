@@ -5,7 +5,7 @@ import os
 app = Flask(__name__)
 app.secret_key = 'super_secret_key_for_school_project'
 
-# Список машин вынесен отдельно, чтобы использовать его и в поиске, и в избранном
+# Список машин вынесен отдельно
 CARS_DATA = [
     ('Lada', 'Niva', 'Россия', 'внедорожник', 80, 1.7, 3, 800000, 'Бензин'),
     ('Lada', 'Vesta', 'Россия', 'седан', 106, 1.6, 4, 1200000, 'Бензин'),
@@ -50,7 +50,6 @@ def create_temp_db():
         id INTEGER PRIMARY KEY AUTOINCREMENT, brand TEXT, model TEXT, country TEXT, 
         body_type TEXT, engine_power INTEGER, engine_volume REAL, design_score INTEGER, price INTEGER, fuel_type TEXT)''')
     
-    # Добавляем ID вручную, так как executemany с AUTOINCREMENT работает не всегда предсказуемо
     cars_with_ids = []
     for i, car in enumerate(CARS_DATA):
         cars_with_ids.append((i+1,) + car)
@@ -62,6 +61,12 @@ def create_temp_db():
 # --- ЛОГИКА ПОИСКА ---
 def search_cars(q, sort_by="default"):
     q = q.lower()
+    
+    # Замена "электрическая" на "электро"
+    if "электрическая" in q:
+        q = q.replace("электрическая", "электро")
+
+    # Словарь русских названий
     brand_translations = {
         "лада": "lada", "ваз": "lada", "жигули": "lada", "тойота": "toyota", "хендай": "hyundai", 
         "хендэ": "hyundai", "киа": "kia", "бмв": "bmw", "мерседес": "mercedes", "мерс": "mercedes", 
@@ -80,16 +85,15 @@ def search_cars(q, sort_by="default"):
     sql = "SELECT * FROM Cars WHERE 1=1"
     params = []
     
-    # --- ИСПРАВЛЕННЫЙ БЛОК ПОИСКА ПО НАЗВАНИЮ ---
-    # Ищем по названию ТОЛЬКО если в запросе НЕТ слов-характеристик
+    # Поиск по названию (только если это не характеристика)
     search_terms = ["недорог", "дешев", "бюджетн", "красив", "стильн", "мощн", "быстр", "спортив", "семейн", "электро", "внедорожник", "седан", "купе", "хэтчбек", "кроссовер"]
     is_feature_search = any(term in q for term in search_terms)
 
     if q and not is_feature_search: 
         sql += " AND (brand LIKE ? OR model LIKE ?)"
         params.append(f"%{q}%"); params.append(f"%{q}%")
-    # ---------------------------------------------
 
+    # Страны
     if any(x in q for x in ["русск", "советск", "российск"]): sql += " AND country = ?"; params.append("Россия")
     if any(x in q for x in ["япон", "тойот", "ниссан"]): sql += " AND country = ?"; params.append("Япония")
     if any(x in q for x in ["немец", "герман", "бмв", "мерсед", "ауди"]): sql += " AND country = ?"; params.append("Германия")
@@ -98,26 +102,32 @@ def search_cars(q, sort_by="default"):
     if any(x in q for x in ["коре", "киа", "хендай"]): sql += " AND country = ?"; params.append("Корея")
     if any(x in q for x in ["китай", "джили", "чери", "хавал"]): sql += " AND country = ?"; params.append("Китай")
     
+    # Топливо
     if any(x in q for x in ["электро", "электрич", "аккумулятор"]): sql += " AND fuel_type = ?"; params.append("Электро")
     if "бензин" in q: sql += " AND fuel_type = ?"; params.append("Бензин")
     
+    # Кузов
     if any(x in q for x in ["внедорожник", "джип"]): sql += " AND body_type = ?"; params.append("внедорожник")
     if "седан" in q: sql += " AND body_type = ?"; params.append("седан")
     if any(x in q for x in ["купе", "спорткар"]): sql += " AND body_type = ?"; params.append("купе")
     if any(x in q for x in ["хэтчбек", "хетч"]): sql += " AND body_type = ?"; params.append("хэтчбек")
     if any(x in q for x in ["кроссовер", "паркетник"]): sql += " AND body_type = ?"; params.append("кроссовер")
 
+    # Характеристики
     if any(x in q for x in ["красив", "стильн", "модн"]): sql += " AND design_score >= ?"; params.append(4)
     if any(x in q for x in ["быстр", "мощн", "крут", "гонк"]): sql += " AND engine_power >= ?"; params.append(300)
     
+    # Цена
     if any(x in q for x in ["дешев", "бюджетн", "недорог", "эконом", "доступн", "недоро"]): 
         sql += " AND price <= ?"; params.append(1500000)
     elif any(x in q for x in ["дорог", "люкс", "премиум"]) and "не" not in q: 
         sql += " AND price >= ?"; params.append(5000000)
     
+    # Семейные
     if any(x in q for x in ["семейн", "больш", "вместит"]): 
         sql += " AND body_type IN (?, ?, ?)"; params.extend(["внедорожник", "кроссовер", "универсал"])
 
+    # Сортировка
     if sort_by == "price_asc": sql += " ORDER BY price ASC"
     elif sort_by == "power_desc": sql += " ORDER BY engine_power DESC"
     else: sql += " ORDER BY id ASC"
