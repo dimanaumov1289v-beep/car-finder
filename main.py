@@ -8,7 +8,8 @@ app = Flask(__name__)
 app.secret_key = 'super_secret_key_for_school_project'
 
 def get_db():
-    conn = sqlite3.connect('cars.db')
+    # Используем базу в оперативной памяти (не сохраняется на диск)
+    conn = sqlite3.connect(':memory:')
     conn.row_factory = sqlite3.Row
     return conn
 
@@ -18,8 +19,7 @@ def init_db():
     cursor = conn.cursor()
     
     # ПРИНУДИТЕЛЬНО УДАЛЯЕМ СТАРУЮ ТАБЛИЦУ И СОЗДАЕМ НОВУЮ
-    cursor.execute("DROP TABLE IF EXISTS Cars")
-    cursor.execute('''CREATE TABLE Cars (
+      cursor.execute('''CREATE TABLE Cars (
         id INTEGER PRIMARY KEY AUTOINCREMENT, brand TEXT, model TEXT, country TEXT, 
         body_type TEXT, engine_power INTEGER, engine_volume REAL, design_score INTEGER, price INTEGER, fuel_type TEXT)''')
     
