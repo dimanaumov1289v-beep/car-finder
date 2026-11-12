@@ -77,14 +77,19 @@ def search_cars(q, sort_by="default"):
 
     conn = create_temp_db()
     cursor = conn.cursor()
-    
     sql = "SELECT * FROM Cars WHERE 1=1"
     params = []
     
-    if q: 
+    # --- ИСПРАВЛЕННЫЙ БЛОК ПОИСКА ПО НАЗВАНИЮ ---
+    # Ищем по названию ТОЛЬКО если в запросе НЕТ слов-характеристик
+    search_terms = ["недорог", "дешев", "бюджетн", "красив", "стильн", "мощн", "быстр", "спортив", "семейн", "электро", "внедорожник", "седан", "купе", "хэтчбек", "кроссовер"]
+    is_feature_search = any(term in q for term in search_terms)
+
+    if q and not is_feature_search: 
         sql += " AND (brand LIKE ? OR model LIKE ?)"
         params.append(f"%{q}%"); params.append(f"%{q}%")
-    
+    # ---------------------------------------------
+
     if any(x in q for x in ["русск", "советск", "российск"]): sql += " AND country = ?"; params.append("Россия")
     if any(x in q for x in ["япон", "тойот", "ниссан"]): sql += " AND country = ?"; params.append("Япония")
     if any(x in q for x in ["немец", "герман", "бмв", "мерсед", "ауди"]): sql += " AND country = ?"; params.append("Германия")
