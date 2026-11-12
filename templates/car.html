@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <title>{{ car[1] }} {{ car[2] }}</title>
+    <style>
+        body { font-family: Arial, sans-serif; background-color: #1a1a1a; color: white; text-align: center; padding-top: 50px; }
+        .container { max-width: 600px; margin: 0 auto; background: #2a2a2a; padding: 30px; border-radius: 10px; box-shadow: 0 4px 10px rgba(0,0,0,0.5); text-align: left; }
+        h1 { text-align: center; color: #007bff; }
+        p { font-size: 18px; border-bottom: 1px solid #444; padding-bottom: 10px; }
+        .back-btn { display: block; text-align: center; margin-top: 20px; text-decoration: none; color: white; background: #007bff; padding: 10px; border-radius: 5px; }
+        .back-btn:hover { background: #0056b3; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>{{ car[1] }} {{ car[2] }}</h1>
+        <p><strong>Страна:</strong> {{ car[3] }}</p>
+        <p><strong>Тип кузова:</strong> {{ car[4] }}</p>
+        <p><strong>Двигатель:</strong> {{ car[5] }} л.с.</p>
+        <p><strong>Объем двигателя:</strong> {{ car[6] }} л (0.0 — значит это электро).</p>
+        <p><strong>Тип топлива:</strong> {{ car[9] }}</p>
+        <p><strong>Оценка дизайна:</strong> {{ car[7] }} / 5</p>
+        <p><strong>Цена:</strong> {{ "{:,}".format(car[8]) }} руб.</p>
+        
+        <a href="/" class="back-btn">← Вернуться к поиску</a>
+    </div>
+</body>
+</html>
