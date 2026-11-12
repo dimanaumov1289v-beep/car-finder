@@ -10,7 +10,7 @@ def get_db():
     conn.row_factory = sqlite3.Row
     return conn
 
-# --- БАЗА ДАННЫХ (без изменений) ---
+# --- БАЗА ДАННЫХ ---
 def init_db():
     conn = get_db()
     cursor = conn.cursor()
@@ -61,14 +61,42 @@ def init_db():
 
 init_db()
 
-# --- ЛОГИКА ПОИСКА (исправленная) ---
+# --- ЛОГИКА ПОИСКА ---
 def search_cars(q, sort_by="default"):
     q = q.lower()
+    
+    # Словарь русских названий брендов
+    brand_translations = {
+        "лада": "lada", "ваз": "lada", "жигули": "lada",
+        "тойота": "toyota", "хендай": "hyundai", "хендэ": "hyundai",
+        "киа": "kia", "бмв": "bmw", "мерседес": "mercedes",
+        "мерс": "mercedes", "ауди": "audi", "порше": "porsche",
+        "фольксваген": "volkswagen", "фольц": "volkswagen", "тесла": "tesla",
+        "форд": "ford", "шевроле": "chevrolet", "ниссан": "nissan",
+        "хонда": "honda", "мазда": "mazda", "субару": "subaru",
+        "лексус": "lexus", "феррари": "ferrari", "ламборгини": "lamborghini",
+        "ламбо": "lamborghini", "альфа": "alfa", "джили": "geely",
+        "чери": "chery", "хавал": "haval", "эксид": "exeed",
+        "омода": "omoda", "танк": "tank", "уаз": "uaz",
+        "газ": "gaz", "москвич": "moskvich"
+    }
+    
+    for rus, eng in brand_translations.items():
+        if rus in q:
+            q = q.replace(rus, eng)
+
     conn = get_db()
     cursor = conn.cursor()
     sql = "SELECT * FROM Cars WHERE 1=1"
     params = []
     
+    # Поиск по названию (бренд или модель)
+    if q: 
+        sql += " AND (brand LIKE ? OR model LIKE ?)"
+        params.append(f"%{q}%")
+        params.append(f"%{q}%")
+    
+    # Страны
     if any(x in q for x in ["русск", "советск", "российск"]): sql += " AND country = ?"; params.append("Россия")
     if any(x in q for x in ["япон", "тойот", "ниссан"]): sql += " AND country = ?"; params.append("Япония")
     if any(x in q for x in ["немец", "герман", "бмв", "мерсед", "ауди"]): sql += " AND country = ?"; params.append("Германия")
@@ -77,19 +105,22 @@ def search_cars(q, sort_by="default"):
     if any(x in q for x in ["коре", "киа", "хендай"]): sql += " AND country = ?"; params.append("Корея")
     if any(x in q for x in ["китай", "джили", "чери", "хавал"]): sql += " AND country = ?"; params.append("Китай")
     
+    # Топливо
     if any(x in q for x in ["электро", "электрич", "аккумулятор"]): sql += " AND fuel_type = ?"; params.append("Электро")
     if "бензин" in q: sql += " AND fuel_type = ?"; params.append("Бензин")
     
+    # Кузов
     if any(x in q for x in ["внедорожник", "джип"]): sql += " AND body_type = ?"; params.append("внедорожник")
     if "седан" in q: sql += " AND body_type = ?"; params.append("седан")
     if any(x in q for x in ["купе", "спорткар"]): sql += " AND body_type = ?"; params.append("купе")
     if any(x in q for x in ["хэтчбек", "хетч"]): sql += " AND body_type = ?"; params.append("хэтчбек")
     if any(x in q for x in ["кроссовер", "паркетник"]): sql += " AND body_type = ?"; params.append("кроссовер")
 
+    # Характеристики
     if any(x in q for x in ["красив", "стильн", "модн"]): sql += " AND design_score >= ?"; params.append(4)
     if any(x in q for x in ["быстр", "мощн", "крут", "гонк"]): sql += " AND engine_power >= ?"; params.append(300)
     
-    # Цена: сначала дешевые, потом дорогие (с проверкой на "не")
+    # Цена
     if any(x in q for x in ["дешев", "бюджетн", "недорог", "эконом", "доступн", "недоро"]): 
         sql += " AND price <= ?"; params.append(1500000)
     elif any(x in q for x in ["дорог", "люкс", "премиум"]) and "не" not in q: 
@@ -98,6 +129,7 @@ def search_cars(q, sort_by="default"):
     if any(x in q for x in ["семейн", "больш", "вместит"]): 
         sql += " AND body_type IN (?, ?, ?)"; params.extend(["внедорожник", "кроссовер", "универсал"])
 
+    # Сортировка
     if sort_by == "price_asc":
         sql += " ORDER BY price ASC"
     elif sort_by == "power_desc":
@@ -177,11 +209,19 @@ def buy_car(car_id):
     conn = get_db()
     car = conn.execute("SELECT * FROM Cars WHERE id = ?", (car_id,)).fetchone()
     conn.close()
-    if car: return render_template('buy.html', car=car)
+    if car:
+        # Формируем правильный URL для Дрома
+        brand_slug = car['brand'].lower().replace(' ', '_')
+        model_slug = car['model'].lower().replace(' ', '_')
+        
+        if brand_slug == 'mercedes-benz':
+            brand_slug = 'mercedes'
+            
+        drom_url = f"https://auto.drom.ru/{brand_slug}/{model_slug}/"
+        return render_template('buy.html', car=car, drom_url=drom_url)
     return "Машина не найдена", 404
 
-# --- ЗАПУСК (для Render и локально) ---
+# --- ЗАПУСК ---
 if __name__ == '__main__':
-    # Render передает порт через переменную окружения PORT
     port = int(os.environ.get('PORT', 5000))
     app.run(host='0.0.0.0', port=port)
