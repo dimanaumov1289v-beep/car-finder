@@ -5,59 +5,61 @@ import os
 app = Flask(__name__)
 app.secret_key = 'super_secret_key_for_school_project'
 
-def get_db():
+# Список машин вынесен отдельно, чтобы использовать его и в поиске, и в избранном
+CARS_DATA = [
+    ('Lada', 'Niva', 'Россия', 'внедорожник', 80, 1.7, 3, 800000, 'Бензин'),
+    ('Lada', 'Vesta', 'Россия', 'седан', 106, 1.6, 4, 1200000, 'Бензин'),
+    ('Lada', 'Granta', 'Россия', 'седан', 87, 1.6, 3, 700000, 'Бензин'),
+    ('Lada', 'Niva Legend', 'Россия', 'внедорожник', 83, 1.7, 3, 950000, 'Бензин'),
+    ('UAZ', 'Patriot', 'Россия', 'внедорожник', 150, 2.7, 3, 1500000, 'Бензин'),
+    ('GAZ', 'Volga Siber', 'Россия', 'седан', 143, 2.4, 3, 600000, 'Бензин'),
+    ('Moskvich', '3', 'Россия', 'кроссовер', 150, 1.5, 2, 1900000, 'Бензин'),
+    ('Toyota', 'Camry', 'Япония', 'седан', 200, 2.5, 5, 3000000, 'Бензин'),
+    ('Toyota', 'Supra', 'Япония', 'купе', 340, 3.0, 5, 5500000, 'Бензин'),
+    ('Toyota', 'Land Cruiser', 'Япония', 'внедорожник', 249, 4.0, 4, 8000000, 'Бензин'),
+    ('Honda', 'Civic Type R', 'Япония', 'хэтчбек', 320, 2.0, 4, 4500000, 'Бензин'),
+    ('Nissan', 'Leaf', 'Япония', 'хэтчбек', 150, 0.0, 3, 2000000, 'Электро'),
+    ('Nissan', 'GT-R R35', 'Япония', 'купе', 570, 3.8, 5, 8000000, 'Бензин'),
+    ('BMW', 'M3', 'Германия', 'купе', 510, 3.0, 5, 7000000, 'Бензин'),
+    ('BMW', 'i4', 'Германия', 'седан', 340, 0.0, 4, 5000000, 'Электро'),
+    ('Mercedes-Benz', 'S-Class', 'Германия', 'седан', 435, 4.0, 5, 12000000, 'Бензин'),
+    ('Audi', 'R8', 'Германия', 'купе', 570, 5.2, 5, 14000000, 'Бензин'),
+    ('Porsche', 'Taycan', 'Германия', 'седан', 408, 0.0, 5, 8500000, 'Электро'),
+    ('Porsche', '911', 'Германия', 'купе', 385, 3.0, 5, 10000000, 'Бензин'),
+    ('Volkswagen', 'Polo', 'Германия', 'хэтчбек', 110, 1.6, 3, 1500000, 'Бензин'),
+    ('Ferrari', 'Roma', 'Италия', 'купе', 620, 3.9, 5, 20000000, 'Бензин'),
+    ('Ford', 'Mustang', 'США', 'купе', 450, 5.0, 4, 4500000, 'Бензин'),
+    ('Tesla', 'Model S', 'США', 'седан', 670, 0.0, 4, 6000000, 'Электро'),
+    ('Tesla', 'Model 3', 'США', 'седан', 283, 0.0, 4, 3500000, 'Электро'),
+    ('Tesla', 'Model Y', 'США', 'кроссовер', 456, 0.0, 4, 4500000, 'Электро'),
+    ('Kia', 'Rio', 'Корея', 'седан', 123, 1.6, 4, 1300000, 'Бензин'),
+    ('Hyundai', 'Solaris', 'Корея', 'седан', 123, 1.6, 3, 1200000, 'Бензин'),
+    ('Hyundai', 'Ioniq 5', 'Корея', 'кроссовер', 325, 0.0, 5, 4500000, 'Электро'),
+    ('Geely', 'Monjaro', 'Китай', 'кроссовер', 238, 2.0, 4, 3500000, 'Бензин'),
+    ('Haval', 'Jolion', 'Китай', 'кроссовер', 143, 1.5, 3, 2000000, 'Бензин'),
+    ('BYD', 'Han', 'Китай', 'седан', 517, 0.0, 4, 4500000, 'Электро'),
+    ('Zeekr', '001', 'Китай', 'седан', 544, 0.0, 5, 5000000, 'Электро')
+]
+
+# Создаем временную БД в памяти и заполняем её
+def create_temp_db():
     conn = sqlite3.connect(':memory:')
     conn.row_factory = sqlite3.Row
-    return conn
-
-def init_db():
-    conn = get_db()
     cursor = conn.cursor()
     cursor.execute('''CREATE TABLE Cars (
         id INTEGER PRIMARY KEY AUTOINCREMENT, brand TEXT, model TEXT, country TEXT, 
         body_type TEXT, engine_power INTEGER, engine_volume REAL, design_score INTEGER, price INTEGER, fuel_type TEXT)''')
     
-    cars = [
-        ('Lada', 'Niva', 'Россия', 'внедорожник', 80, 1.7, 3, 800000, 'Бензин'),
-        ('Lada', 'Vesta', 'Россия', 'седан', 106, 1.6, 4, 1200000, 'Бензин'),
-        ('Lada', 'Granta', 'Россия', 'седан', 87, 1.6, 3, 700000, 'Бензин'),
-        ('Lada', 'Niva Legend', 'Россия', 'внедорожник', 83, 1.7, 3, 950000, 'Бензин'),
-        ('UAZ', 'Patriot', 'Россия', 'внедорожник', 150, 2.7, 3, 1500000, 'Бензин'),
-        ('GAZ', 'Volga Siber', 'Россия', 'седан', 143, 2.4, 3, 600000, 'Бензин'),
-        ('Moskvich', '3', 'Россия', 'кроссовер', 150, 1.5, 2, 1900000, 'Бензин'),
-        ('Toyota', 'Camry', 'Япония', 'седан', 200, 2.5, 5, 3000000, 'Бензин'),
-        ('Toyota', 'Supra', 'Япония', 'купе', 340, 3.0, 5, 5500000, 'Бензин'),
-        ('Toyota', 'Land Cruiser', 'Япония', 'внедорожник', 249, 4.0, 4, 8000000, 'Бензин'),
-        ('Honda', 'Civic Type R', 'Япония', 'хэтчбек', 320, 2.0, 4, 4500000, 'Бензин'),
-        ('Nissan', 'Leaf', 'Япония', 'хэтчбек', 150, 0.0, 3, 2000000, 'Электро'),
-        ('Nissan', 'GT-R R35', 'Япония', 'купе', 570, 3.8, 5, 8000000, 'Бензин'),
-        ('BMW', 'M3', 'Германия', 'купе', 510, 3.0, 5, 7000000, 'Бензин'),
-        ('BMW', 'i4', 'Германия', 'седан', 340, 0.0, 4, 5000000, 'Электро'),
-        ('Mercedes-Benz', 'S-Class', 'Германия', 'седан', 435, 4.0, 5, 12000000, 'Бензин'),
-        ('Audi', 'R8', 'Германия', 'купе', 570, 5.2, 5, 14000000, 'Бензин'),
-        ('Porsche', 'Taycan', 'Германия', 'седан', 408, 0.0, 5, 8500000, 'Электро'),
-        ('Porsche', '911', 'Германия', 'купе', 385, 3.0, 5, 10000000, 'Бензин'),
-        ('Volkswagen', 'Polo', 'Германия', 'хэтчбек', 110, 1.6, 3, 1500000, 'Бензин'),
-        ('Ferrari', 'Roma', 'Италия', 'купе', 620, 3.9, 5, 20000000, 'Бензин'),
-        ('Ford', 'Mustang', 'США', 'купе', 450, 5.0, 4, 4500000, 'Бензин'),
-        ('Tesla', 'Model S', 'США', 'седан', 670, 0.0, 4, 6000000, 'Электро'),
-        ('Tesla', 'Model 3', 'США', 'седан', 283, 0.0, 4, 3500000, 'Электро'),
-        ('Tesla', 'Model Y', 'США', 'кроссовер', 456, 0.0, 4, 4500000, 'Электро'),
-        ('Kia', 'Rio', 'Корея', 'седан', 123, 1.6, 4, 1300000, 'Бензин'),
-        ('Hyundai', 'Solaris', 'Корея', 'седан', 123, 1.6, 3, 1200000, 'Бензин'),
-        ('Hyundai', 'Ioniq 5', 'Корея', 'кроссовер', 325, 0.0, 5, 4500000, 'Электро'),
-        ('Geely', 'Monjaro', 'Китай', 'кроссовер', 238, 2.0, 4, 3500000, 'Бензин'),
-        ('Haval', 'Jolion', 'Китай', 'кроссовер', 143, 1.5, 3, 2000000, 'Бензин'),
-        ('BYD', 'Han', 'Китай', 'седан', 517, 0.0, 4, 4500000, 'Электро'),
-        ('Zeekr', '001', 'Китай', 'седан', 544, 0.0, 5, 5000000, 'Электро')
-    ]
-    cursor.executemany('''INSERT INTO Cars (brand, model, country, body_type, engine_power, engine_volume, design_score, price, fuel_type) 
-                          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)''', cars)
-    conn.commit()
-    conn.close()
+    # Добавляем ID вручную, так как executemany с AUTOINCREMENT работает не всегда предсказуемо
+    cars_with_ids = []
+    for i, car in enumerate(CARS_DATA):
+        cars_with_ids.append((i+1,) + car)
+        
+    cursor.executemany('''INSERT INTO Cars (id, brand, model, country, body_type, engine_power, engine_volume, design_score, price, fuel_type) 
+                          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)''', cars_with_ids)
+    return conn
 
-init_db()
-
+# --- ЛОГИКА ПОИСКА ---
 def search_cars(q, sort_by="default"):
     q = q.lower()
     brand_translations = {
@@ -73,8 +75,9 @@ def search_cars(q, sort_by="default"):
     for rus, eng in brand_translations.items():
         if rus in q: q = q.replace(rus, eng)
 
-    conn = get_db()
+    conn = create_temp_db()
     cursor = conn.cursor()
+    
     sql = "SELECT * FROM Cars WHERE 1=1"
     params = []
     
@@ -119,6 +122,7 @@ def search_cars(q, sort_by="default"):
     conn.close()
     return results
 
+# --- МАРШРУТЫ ---
 @app.route('/')
 def home():
     sort = request.args.get('sort', 'default')
@@ -160,18 +164,20 @@ def toggle_favorite(car_id):
 def show_favorites():
     if 'favorites' not in session or not session['favorites']:
         return render_template('index.html', results=[], searched=True, title="Избранное", query="", sort="default", favorites=[], message="У вас пока нет избранных машин.")
-    conn = get_db()
+    
+    conn = create_temp_db()
     placeholders = ','.join('?' for _ in session['favorites'])
     query = f"SELECT * FROM Cars WHERE id IN ({placeholders})"
     cursor = conn.cursor()
     cursor.execute(query, session['favorites'])
     results = cursor.fetchall()
     conn.close()
+    
     return render_template('index.html', results=results, searched=True, title="Избранное", query="", sort="default", favorites=session['favorites'])
 
 @app.route('/car/<int:car_id>')
 def car_details(car_id):
-    conn = get_db()
+    conn = create_temp_db()
     car = conn.execute("SELECT * FROM Cars WHERE id = ?", (car_id,)).fetchone()
     conn.close()
     if car: return render_template('car.html', car=car)
@@ -179,7 +185,7 @@ def car_details(car_id):
 
 @app.route('/buy/<int:car_id>')
 def buy_car(car_id):
-    conn = get_db()
+    conn = create_temp_db()
     car = conn.execute("SELECT * FROM Cars WHERE id = ?", (car_id,)).fetchone()
     conn.close()
     if car:
