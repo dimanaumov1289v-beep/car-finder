@@ -1,6 +1,8 @@
 from flask import Flask, render_template, request, session, redirect, url_for
 import sqlite3
 import os
+if os.path.exists('cars.db'):
+    os.remove('cars.db')
 
 app = Flask(__name__)
 app.secret_key = 'super_secret_key_for_school_project'
