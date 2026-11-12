@@ -14,6 +14,7 @@ def get_db():
 def init_db():
     conn = get_db()
     cursor = conn.cursor()
+    cursor.execute("DROP TABLE IF EXISTS Cars")
     cursor.execute('''CREATE TABLE IF NOT EXISTS Cars (
         id INTEGER PRIMARY KEY AUTOINCREMENT, brand TEXT, model TEXT, country TEXT, 
         body_type TEXT, engine_power INTEGER, engine_volume REAL, design_score INTEGER, price INTEGER, fuel_type TEXT)''')
