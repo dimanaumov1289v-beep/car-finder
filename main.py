@@ -1,29 +1,22 @@
 from flask import Flask, render_template, request, session, redirect, url_for
 import sqlite3
 import os
-if os.path.exists('cars.db'):
-    os.remove('cars.db')
 
 app = Flask(__name__)
 app.secret_key = 'super_secret_key_for_school_project'
 
 def get_db():
-    # Используем базу в оперативной памяти (не сохраняется на диск)
     conn = sqlite3.connect(':memory:')
     conn.row_factory = sqlite3.Row
     return conn
 
-# --- БАЗА ДАННЫХ ---
 def init_db():
     conn = get_db()
     cursor = conn.cursor()
-    
-    # ПРИНУДИТЕЛЬНО УДАЛЯЕМ СТАРУЮ ТАБЛИЦУ И СОЗДАЕМ НОВУЮ
-      cursor.execute('''CREATE TABLE Cars (
+    cursor.execute('''CREATE TABLE Cars (
         id INTEGER PRIMARY KEY AUTOINCREMENT, brand TEXT, model TEXT, country TEXT, 
         body_type TEXT, engine_power INTEGER, engine_volume REAL, design_score INTEGER, price INTEGER, fuel_type TEXT)''')
     
-    # ЗАЛИВАЕМ МАШИНЫ
     cars = [
         ('Lada', 'Niva', 'Россия', 'внедорожник', 80, 1.7, 3, 800000, 'Бензин'),
         ('Lada', 'Vesta', 'Россия', 'седан', 106, 1.6, 4, 1200000, 'Бензин'),
@@ -63,10 +56,8 @@ def init_db():
     conn.commit()
     conn.close()
 
-# ВЫЗЫВАЕМ ИНИЦИАЛИЗАЦИЮ ПРИ СТАРТЕ
 init_db()
 
-# --- ЛОГИКА ПОИСКА ---
 def search_cars(q, sort_by="default"):
     q = q.lower()
     brand_translations = {
