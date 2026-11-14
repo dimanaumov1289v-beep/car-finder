@@ -5,7 +5,6 @@ import os
 app = Flask(__name__)
 app.secret_key = 'super_secret_key_for_school_project'
 
-# Список машин
 CARS_DATA = [
     ('Lada', 'Niva', 'Россия', 'внедорожник', 80, 1.7, 3, 800000, 'Бензин'),
     ('Lada', 'Vesta', 'Россия', 'седан', 106, 1.6, 4, 1200000, 'Бензин'),
@@ -48,11 +47,7 @@ def create_temp_db():
     cursor.execute('''CREATE TABLE Cars (
         id INTEGER PRIMARY KEY AUTOINCREMENT, brand TEXT, model TEXT, country TEXT, 
         body_type TEXT, engine_power INTEGER, engine_volume REAL, design_score INTEGER, price INTEGER, fuel_type TEXT)''')
-    
-    cars_with_ids = []
-    for i, car in enumerate(CARS_DATA):
-        cars_with_ids.append((i+1,) + car)
-        
+    cars_with_ids = [(i+1,) + car for i, car in enumerate(CARS_DATA)]
     cursor.executemany('''INSERT INTO Cars (id, brand, model, country, body_type, engine_power, engine_volume, design_score, price, fuel_type) 
                           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)''', cars_with_ids)
     return conn
@@ -60,31 +55,26 @@ def create_temp_db():
 def search_cars(q, sort_by="default"):
     q = q.lower()
     
-    # 1. Замена прилагательных на страны
-    country_translations = {
-        "русская": "россия", "российская": "россия",
-        "японская": "япония",
-        "немецкая": "германия",
-        "итальянская": "италия",
-        "американская": "сша",
-        "корейская": "корея",
-        "китайская": "китай"
-    }
-    for rus, eng in country_translations.items():
-        if rus in q: q = q.replace(rus, eng)
-
-    # 2. Замена названий брендов
-    brand_translations = {
+    # Замены стран
+    if "японская" in q or "японский" in q: q = q.replace("японская", "япония").replace("японский", "япония")
+    if "немецкая" in q or "немецкий" in q: q = q.replace("немецкая", "германия").replace("немецкий", "германия")
+    if "русская" in q or "российская" in q: q = q.replace("русская", "россия").replace("российская", "россия")
+    if "американская" in q: q = q.replace("американская", "сша")
+    if "корейская" in q: q = q.replace("корейская", "корея")
+    if "китайская" in q: q = q.replace("китайская", "китай")
+    if "итальянская" in q: q = q.replace("итальянская", "италия")
+    
+    # Замены брендов
+    brands = {
         "лада": "lada", "ваз": "lada", "жигули": "lada", "тойота": "toyota", "хендай": "hyundai", 
         "хендэ": "hyundai", "киа": "kia", "бмв": "bmw", "мерседес": "mercedes", "мерс": "mercedes", 
-        "ауди": "audi", "порше": "porsche", "фольксваген": "volkswagen", "фольц": "volkswagen", 
-        "тесла": "tesla", "форд": "ford", "шевроле": "chevrolet", "ниссан": "nissan", "хонда": "honda", 
+        "ауди": "audi", "порше": "porsche", "фольксваген": "volkswagen", "тесла": "tesla", 
+        "форд": "ford", "шевроле": "chevrolet", "ниссан": "nissan", "хонда": "honda", 
         "мазда": "mazda", "субару": "subaru", "лексус": "lexus", "феррари": "ferrari", 
-        "ламборгини": "lamborghini", "ламбо": "lamborghini", "альфа": "alfa", "джили": "geely", 
-        "чери": "chery", "хавал": "haval", "эксид": "exeed", "омода": "omoda", "танк": "tank", 
-        "уаз": "uaz", "газ": "gaz", "москвич": "moskvich"
+        "ламборгини": "lamborghini", "ламбо": "lamborghini", "джили": "geely", 
+        "чери": "chery", "хавал": "haval", "уаз": "uaz", "газ": "gaz", "москвич": "moskvich"
     }
-    for rus, eng in brand_translations.items():
+    for rus, eng in brands.items():
         if rus in q: q = q.replace(rus, eng)
 
     conn = create_temp_db()
@@ -92,53 +82,39 @@ def search_cars(q, sort_by="default"):
     sql = "SELECT * FROM Cars WHERE 1=1"
     params = []
     
-    # 3. Поиск по названию (только если нет характеристик)
-    search_terms = ["недорог", "дешев", "бюджетн", "красив", "стильн", "мощн", "быстр", "спортив", "семейн", "электро", "внедорожник", "седан", "купе", "хэтчбек", "кроссовер", "город"]
-    is_feature_search = any(term in q for term in search_terms)
+    # Прямые проверки
+    if "россия" in q: sql += " AND country = ?"; params.append("Россия")
+    if "япония" in q: sql += " AND country = ?"; params.append("Япония")
+    if "германия" in q: sql += " AND country = ?"; params.append("Германия")
+    if "италия" in q: sql += " AND country = ?"; params.append("Италия")
+    if "сша" in q: sql += " AND country = ?"; params.append("США")
+    if "корея" in q: sql += " AND country = ?"; params.append("Корея")
+    if "китай" in q: sql += " AND country = ?"; params.append("Китай")
+    
+    if "электро" in q or "электрич" in q: sql += " AND fuel_type = ?"; params.append("Электро")
+    
+    if "внедорожник" in q or "джип" in q: sql += " AND body_type = ?"; params.append("внедорожник")
+    if "седан" in q: sql += " AND body_type = ?"; params.append("седан")
+    if "купе" in q or "спорткар" in q: sql += " AND body_type = ?"; params.append("купе")
+    if "хэтчбек" in q or "хетч" in q: sql += " AND body_type = ?"; params.append("хэтчбек")
+    if "кроссовер" in q: sql += " AND body_type = ?"; params.append("кроссовер")
 
-    if q and not is_feature_search: 
+    if "красив" in q or "стильн" in q: sql += " AND design_score >= ?"; params.append(4)
+    if "быстр" in q or "мощн" in q: sql += " AND engine_power >= ?"; params.append(300)
+    if "дешев" in q or "недорог" in q or "бюджетн" in q: sql += " AND price <= ?"; params.append(1500000)
+    if "дорог" in q or "люкс" in q: sql += " AND price >= ?"; params.append(5000000)
+    
+    # Поиск по названию, если это не характеристика
+    features = ["россия", "япония", "германия", "италия", "сша", "корея", "китай", "электро", 
+                "внедорожник", "джип", "седан", "купе", "спорткар", "хэтчбек", "кроссовер", 
+                "красив", "стильн", "быстр", "мощн", "дешев", "недорог", "бюджетн", "дорог", "люкс"]
+    is_feature = any(f in q for f in features)
+    
+    if q and not is_feature:
         sql += " AND (brand LIKE ? OR model LIKE ?)"
-        params.append(f"%{q}%"); params.append(f"%{q}%")
+        params.append(f"%{q}%")
+        params.append(f"%{q}%")
 
-    # 4. Страны
-    if any(x in q for x in ["россия", "русск", "советск"]): sql += " AND country = ?"; params.append("Россия")
-    if any(x in q for x in ["япония", "япон"]): sql += " AND country = ?"; params.append("Япония")
-    if any(x in q for x in ["германия", "немец", "герман"]): sql += " AND country = ?"; params.append("Германия")
-    if any(x in q for x in ["италия", "итальян"]): sql += " AND country = ?"; params.append("Италия")
-    if any(x in q for x in ["сша", "америк"]): sql += " AND country = ?"; params.append("США")
-    if any(x in q for x in ["корея", "коре"]): sql += " AND country = ?"; params.append("Корея")
-    if any(x in q for x in ["китай", "китайск"]): sql += " AND country = ?"; params.append("Китай")
-    
-    # 5. Топливо
-    if any(x in q for x in ["электро", "электрич", "аккумулятор"]): sql += " AND fuel_type = ?"; params.append("Электро")
-    if "бензин" in q: sql += " AND fuel_type = ?"; params.append("Бензин")
-    
-    # 6. Кузов
-    if any(x in q for x in ["внедорожник", "джип"]): sql += " AND body_type = ?"; params.append("внедорожник")
-    if any(x in q for x in ["седан", "город"]): 
-        if "город" in q:
-            sql += " AND body_type IN (?, ?, ?)"; params.extend(["седан", "хэтчбек", "кроссовер"])
-        else:
-            sql += " AND body_type = ?"; params.append("седан")
-    if any(x in q for x in ["купе", "спорткар"]): sql += " AND body_type = ?"; params.append("купе")
-    if any(x in q for x in ["хэтчбек", "хетч"]): sql += " AND body_type = ?"; params.append("хэтчбек")
-    if any(x in q for x in ["кроссовер", "паркетник"]): sql += " AND body_type = ?"; params.append("кроссовер")
-
-    # 7. Характеристики
-    if any(x in q for x in ["красив", "стильн", "модн"]): sql += " AND design_score >= ?"; params.append(4)
-    if any(x in q for x in ["быстр", "мощн", "крут", "гонк"]): sql += " AND engine_power >= ?"; params.append(300)
-    
-    # 8. Цена
-    if any(x in q for x in ["дешев", "бюджетн", "недорог", "эконом", "доступн", "недоро"]): 
-        sql += " AND price <= ?"; params.append(1500000)
-    elif any(x in q for x in ["дорог", "люкс", "премиум"]) and "не" not in q: 
-        sql += " AND price >= ?"; params.append(5000000)
-    
-    # 9. Семейные
-    if any(x in q for x in ["семейн", "больш", "вместит"]): 
-        sql += " AND body_type IN (?, ?, ?)"; params.extend(["внедорожник", "кроссовер", "универсал"])
-
-    # 10. Сортировка
     if sort_by == "price_asc": sql += " ORDER BY price ASC"
     elif sort_by == "power_desc": sql += " ORDER BY engine_power DESC"
     else: sql += " ORDER BY id ASC"
@@ -148,7 +124,6 @@ def search_cars(q, sort_by="default"):
     conn.close()
     return results
 
-# --- МАРШРУТЫ ---
 @app.route('/')
 def home():
     sort = request.args.get('sort', 'default')
@@ -169,13 +144,11 @@ def search_get():
 
 @app.route('/electric')
 def electric():
-    sort = request.args.get('sort', 'default')
-    return render_template('index.html', results=search_cars("электрическая", sort), searched=False, title="Электромобили", query="электрическая", sort=sort, favorites=session.get('favorites', []))
+    return render_template('index.html', results=search_cars("электрическая"), searched=False, title="Электромобили", query="электрическая", sort="default", favorites=session.get('favorites', []))
 
 @app.route('/cheap')
 def cheap():
-    sort = request.args.get('sort', 'default')
-    return render_template('index.html', results=search_cars("недорогая", sort), searched=False, title="Бюджетные авто", query="недорогая", sort=sort, favorites=session.get('favorites', []))
+    return render_template('index.html', results=search_cars("недорогая"), searched=False, title="Бюджетные авто", query="недорогая", sort="default", favorites=session.get('favorites', []))
 
 @app.route('/favorite/<int:car_id>')
 def toggle_favorite(car_id):
@@ -190,15 +163,12 @@ def toggle_favorite(car_id):
 def show_favorites():
     if 'favorites' not in session or not session['favorites']:
         return render_template('index.html', results=[], searched=True, title="Избранное", query="", sort="default", favorites=[], message="У вас пока нет избранных машин.")
-    
     conn = create_temp_db()
     placeholders = ','.join('?' for _ in session['favorites'])
-    query = f"SELECT * FROM Cars WHERE id IN ({placeholders})"
     cursor = conn.cursor()
-    cursor.execute(query, session['favorites'])
+    cursor.execute(f"SELECT * FROM Cars WHERE id IN ({placeholders})", session['favorites'])
     results = cursor.fetchall()
     conn.close()
-    
     return render_template('index.html', results=results, searched=True, title="Избранное", query="", sort="default", favorites=session['favorites'])
 
 @app.route('/car/<int:car_id>')
