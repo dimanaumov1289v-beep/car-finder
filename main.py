@@ -55,66 +55,78 @@ def create_temp_db():
 def search_cars(q, sort_by="default"):
     q = q.lower()
     
-    # Замены стран
-    if "японская" in q or "японский" in q: q = q.replace("японская", "япония").replace("японский", "япония")
-    if "немецкая" in q or "немецкий" in q: q = q.replace("немецкая", "германия").replace("немецкий", "германия")
-    if "русская" in q or "российская" in q: q = q.replace("русская", "россия").replace("российская", "россия")
-    if "американская" in q: q = q.replace("американская", "сша")
-    if "корейская" in q: q = q.replace("корейская", "корея")
-    if "китайская" in q: q = q.replace("китайская", "китай")
-    if "итальянская" in q: q = q.replace("итальянская", "италия")
+    # Словарь стран
+    country_map = {
+        "русск": "Россия", "росси": "Россия", "советск": "Россия",
+        "япон": "Япония", "немец": "Германия", "герман": "Германия",
+        "итальян": "Италия", "америк": "США", "сша": "США",
+        "коре": "Корея", "китай": "Китай"
+    }
     
-    # Замены брендов
-    brands = {
+    # Словарь брендов
+    brand_map = {
         "лада": "lada", "ваз": "lada", "жигули": "lada", "тойота": "toyota", "хендай": "hyundai", 
         "хендэ": "hyundai", "киа": "kia", "бмв": "bmw", "мерседес": "mercedes", "мерс": "mercedes", 
-        "ауди": "audi", "порше": "porsche", "фольксваген": "volkswagen", "тесла": "tesla", 
-        "форд": "ford", "шевроле": "chevrolet", "ниссан": "nissan", "хонда": "honda", 
+        "ауди": "audi", "порше": "porsche", "фольксваген": "volkswagen", "фольц": "volkswagen", 
+        "тесла": "tesla", "форд": "ford", "шевроле": "chevrolet", "ниссан": "nissan", "хонда": "honda", 
         "мазда": "mazda", "субару": "subaru", "лексус": "lexus", "феррари": "ferrari", 
-        "ламборгини": "lamborghini", "ламбо": "lamborghini", "джили": "geely", 
-        "чери": "chery", "хавал": "haval", "уаз": "uaz", "газ": "gaz", "москвич": "moskvich"
+        "ламборгини": "lamborghini", "ламбо": "lamborghini", "альфа": "alfa", "джили": "geely", 
+        "чери": "chery", "хавал": "haval", "эксид": "exeed", "омода": "omoda", "танк": "tank", 
+        "уаз": "uaz", "газ": "gaz", "москвич": "moskvich"
     }
-    for rus, eng in brands.items():
-        if rus in q: q = q.replace(rus, eng)
 
     conn = create_temp_db()
     cursor = conn.cursor()
     sql = "SELECT * FROM Cars WHERE 1=1"
     params = []
     
-    # Прямые проверки
-    if "россия" in q: sql += " AND country = ?"; params.append("Россия")
-    if "япония" in q: sql += " AND country = ?"; params.append("Япония")
-    if "германия" in q: sql += " AND country = ?"; params.append("Германия")
-    if "италия" in q: sql += " AND country = ?"; params.append("Италия")
-    if "сша" in q: sql += " AND country = ?"; params.append("США")
-    if "корея" in q: sql += " AND country = ?"; params.append("Корея")
-    if "китай" in q: sql += " AND country = ?"; params.append("Китай")
+    # Поиск по стране
+    found_country = None
+    for key, val in country_map.items():
+        if key in q:
+            found_country = val
+            break
+    if found_country:
+        sql += " AND country = ?"; params.append(found_country)
+
+    # Поиск по бренду/модели (если это не характеристика)
+    features = ["росси", "япон", "немец", "итальян", "америк", "сша", "коре", "китай", 
+                "электро", "внедорожник", "джип", "седан", "купе", "спорткар", "хэтчбек", "кроссовер", 
+                "красив", "стильн", "быстр", "мощн", "дешев", "недорог", "бюджетн", "дорог", "люкс", "семейн", "город"]
     
-    if "электро" in q or "электрич" in q: sql += " AND fuel_type = ?"; params.append("Электро")
+    is_feature = any(f in q for f in features)
     
+    if q and not is_feature and not found_country:
+        for rus, eng in brand_map.items():
+            if rus in q:
+                q = q.replace(rus, eng)
+        
+        sql += " AND (brand LIKE ? OR model LIKE ?)"
+        params.append(f"%{q}%")
+        params.append(f"%{q}%")
+
+    # --- ИСПРАВЛЕННЫЙ БЛОК ПРО ТОПЛИВО ---
+    if "электро" in q or "электрич" in q:
+        sql += " AND fuel_type = ?"; params.append("Электро")
+    
+    # Кузов
     if "внедорожник" in q or "джип" in q: sql += " AND body_type = ?"; params.append("внедорожник")
     if "седан" in q: sql += " AND body_type = ?"; params.append("седан")
     if "купе" in q or "спорткар" in q: sql += " AND body_type = ?"; params.append("купе")
     if "хэтчбек" in q or "хетч" in q: sql += " AND body_type = ?"; params.append("хэтчбек")
     if "кроссовер" in q: sql += " AND body_type = ?"; params.append("кроссовер")
+    if "город" in q: sql += " AND body_type IN (?, ?, ?)"; params.extend(["седан", "хэтчбек", "кроссовер"])
 
+    # Характеристики
     if "красив" in q or "стильн" in q: sql += " AND design_score >= ?"; params.append(4)
     if "быстр" in q or "мощн" in q: sql += " AND engine_power >= ?"; params.append(300)
     if "дешев" in q or "недорог" in q or "бюджетн" in q: sql += " AND price <= ?"; params.append(1500000)
     if "дорог" in q or "люкс" in q: sql += " AND price >= ?"; params.append(5000000)
     
-    # Поиск по названию, если это не характеристика
-    features = ["россия", "япония", "германия", "италия", "сша", "корея", "китай", "электро", 
-                "внедорожник", "джип", "седан", "купе", "спорткар", "хэтчбек", "кроссовер", 
-                "красив", "стильн", "быстр", "мощн", "дешев", "недорог", "бюджетн", "дорог", "люкс"]
-    is_feature = any(f in q for f in features)
-    
-    if q and not is_feature:
-        sql += " AND (brand LIKE ? OR model LIKE ?)"
-        params.append(f"%{q}%")
-        params.append(f"%{q}%")
+    # Семейная
+    if "семейн" in q: sql += " AND body_type IN (?, ?, ?)"; params.extend(["внедорожник", "кроссовер", "универсал"])
 
+    # Сортировка
     if sort_by == "price_asc": sql += " ORDER BY price ASC"
     elif sort_by == "power_desc": sql += " ORDER BY engine_power DESC"
     else: sql += " ORDER BY id ASC"
