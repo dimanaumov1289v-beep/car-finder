@@ -5,7 +5,7 @@ import os
 app = Flask(__name__)
 app.secret_key = 'super_secret_key_for_school_project'
 
-# Список машин вынесен отдельно
+# Список машин
 CARS_DATA = [
     ('Lada', 'Niva', 'Россия', 'внедорожник', 80, 1.7, 3, 800000, 'Бензин'),
     ('Lada', 'Vesta', 'Россия', 'седан', 106, 1.6, 4, 1200000, 'Бензин'),
@@ -41,7 +41,6 @@ CARS_DATA = [
     ('Zeekr', '001', 'Китай', 'седан', 544, 0.0, 5, 5000000, 'Электро')
 ]
 
-# Создаем временную БД в памяти и заполняем её
 def create_temp_db():
     conn = sqlite3.connect(':memory:')
     conn.row_factory = sqlite3.Row
@@ -58,15 +57,23 @@ def create_temp_db():
                           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)''', cars_with_ids)
     return conn
 
-# --- ЛОГИКА ПОИСКА ---
 def search_cars(q, sort_by="default"):
     q = q.lower()
     
-    # Замена "электрическая" на "электро"
-    if "электрическая" in q:
-        q = q.replace("электрическая", "электро")
+    # 1. Замена прилагательных на страны
+    country_translations = {
+        "русская": "россия", "российская": "россия",
+        "японская": "япония",
+        "немецкая": "германия",
+        "итальянская": "италия",
+        "американская": "сша",
+        "корейская": "корея",
+        "китайская": "китай"
+    }
+    for rus, eng in country_translations.items():
+        if rus in q: q = q.replace(rus, eng)
 
-    # Словарь русских названий
+    # 2. Замена названий брендов
     brand_translations = {
         "лада": "lada", "ваз": "lada", "жигули": "lada", "тойота": "toyota", "хендай": "hyundai", 
         "хендэ": "hyundai", "киа": "kia", "бмв": "bmw", "мерседес": "mercedes", "мерс": "mercedes", 
@@ -85,49 +92,53 @@ def search_cars(q, sort_by="default"):
     sql = "SELECT * FROM Cars WHERE 1=1"
     params = []
     
-    # Поиск по названию (только если это не характеристика)
-    search_terms = ["недорог", "дешев", "бюджетн", "красив", "стильн", "мощн", "быстр", "спортив", "семейн", "электро", "внедорожник", "седан", "купе", "хэтчбек", "кроссовер"]
+    # 3. Поиск по названию (только если нет характеристик)
+    search_terms = ["недорог", "дешев", "бюджетн", "красив", "стильн", "мощн", "быстр", "спортив", "семейн", "электро", "внедорожник", "седан", "купе", "хэтчбек", "кроссовер", "город"]
     is_feature_search = any(term in q for term in search_terms)
 
     if q and not is_feature_search: 
         sql += " AND (brand LIKE ? OR model LIKE ?)"
         params.append(f"%{q}%"); params.append(f"%{q}%")
 
-    # Страны
-    if any(x in q for x in ["русск", "советск", "российск"]): sql += " AND country = ?"; params.append("Россия")
-    if any(x in q for x in ["япон", "тойот", "ниссан"]): sql += " AND country = ?"; params.append("Япония")
-    if any(x in q for x in ["немец", "герман", "бмв", "мерсед", "ауди"]): sql += " AND country = ?"; params.append("Германия")
-    if any(x in q for x in ["итальян", "феррари", "ламбо"]): sql += " AND country = ?"; params.append("Италия")
-    if any(x in q for x in ["америк", "сша", "тесла", "форд"]): sql += " AND country = ?"; params.append("США")
-    if any(x in q for x in ["коре", "киа", "хендай"]): sql += " AND country = ?"; params.append("Корея")
-    if any(x in q for x in ["китай", "джили", "чери", "хавал"]): sql += " AND country = ?"; params.append("Китай")
+    # 4. Страны
+    if any(x in q for x in ["россия", "русск", "советск"]): sql += " AND country = ?"; params.append("Россия")
+    if any(x in q for x in ["япония", "япон"]): sql += " AND country = ?"; params.append("Япония")
+    if any(x in q for x in ["германия", "немец", "герман"]): sql += " AND country = ?"; params.append("Германия")
+    if any(x in q for x in ["италия", "итальян"]): sql += " AND country = ?"; params.append("Италия")
+    if any(x in q for x in ["сша", "америк"]): sql += " AND country = ?"; params.append("США")
+    if any(x in q for x in ["корея", "коре"]): sql += " AND country = ?"; params.append("Корея")
+    if any(x in q for x in ["китай", "китайск"]): sql += " AND country = ?"; params.append("Китай")
     
-    # Топливо
+    # 5. Топливо
     if any(x in q for x in ["электро", "электрич", "аккумулятор"]): sql += " AND fuel_type = ?"; params.append("Электро")
     if "бензин" in q: sql += " AND fuel_type = ?"; params.append("Бензин")
     
-    # Кузов
+    # 6. Кузов
     if any(x in q for x in ["внедорожник", "джип"]): sql += " AND body_type = ?"; params.append("внедорожник")
-    if "седан" in q: sql += " AND body_type = ?"; params.append("седан")
+    if any(x in q for x in ["седан", "город"]): 
+        if "город" in q:
+            sql += " AND body_type IN (?, ?, ?)"; params.extend(["седан", "хэтчбек", "кроссовер"])
+        else:
+            sql += " AND body_type = ?"; params.append("седан")
     if any(x in q for x in ["купе", "спорткар"]): sql += " AND body_type = ?"; params.append("купе")
     if any(x in q for x in ["хэтчбек", "хетч"]): sql += " AND body_type = ?"; params.append("хэтчбек")
     if any(x in q for x in ["кроссовер", "паркетник"]): sql += " AND body_type = ?"; params.append("кроссовер")
 
-    # Характеристики
+    # 7. Характеристики
     if any(x in q for x in ["красив", "стильн", "модн"]): sql += " AND design_score >= ?"; params.append(4)
     if any(x in q for x in ["быстр", "мощн", "крут", "гонк"]): sql += " AND engine_power >= ?"; params.append(300)
     
-    # Цена
+    # 8. Цена
     if any(x in q for x in ["дешев", "бюджетн", "недорог", "эконом", "доступн", "недоро"]): 
         sql += " AND price <= ?"; params.append(1500000)
     elif any(x in q for x in ["дорог", "люкс", "премиум"]) and "не" not in q: 
         sql += " AND price >= ?"; params.append(5000000)
     
-    # Семейные
+    # 9. Семейные
     if any(x in q for x in ["семейн", "больш", "вместит"]): 
         sql += " AND body_type IN (?, ?, ?)"; params.extend(["внедорожник", "кроссовер", "универсал"])
 
-    # Сортировка
+    # 10. Сортировка
     if sort_by == "price_asc": sql += " ORDER BY price ASC"
     elif sort_by == "power_desc": sql += " ORDER BY engine_power DESC"
     else: sql += " ORDER BY id ASC"
