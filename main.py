@@ -55,13 +55,7 @@ def create_temp_db():
 def search_cars(q, sort_by="default"):
     q = q.lower()
     
-    country_map = {
-        "русск": "Россия", "росси": "Россия", "советск": "Россия",
-        "япон": "Япония", "немец": "Германия", "герман": "Германия",
-        "итальян": "Италия", "америк": "США", "сша": "США",
-        "коре": "Корея", "китай": "Китай"
-    }
-    
+    # Замена брендов
     brand_map = {
         "лада": "lada", "ваз": "lada", "жигули": "lada", "тойота": "toyota", "хендай": "hyundai", 
         "хендэ": "hyundai", "киа": "kia", "бмв": "bmw", "мерседес": "mercedes", "мерс": "mercedes", 
@@ -72,21 +66,44 @@ def search_cars(q, sort_by="default"):
         "чери": "chery", "хавал": "haval", "эксид": "exeed", "омода": "omoda", "танк": "tank", 
         "уаз": "uaz", "газ": "gaz", "москвич": "moskvich"
     }
+    for rus, eng in brand_map.items():
+        if rus in q: q = q.replace(rus, eng)
 
     conn = create_temp_db()
     cursor = conn.cursor()
     sql = "SELECT * FROM Cars WHERE 1=1"
     params = []
     
-    found_country = None
-    for key, val in country_map.items():
-        if key in q:
-            found_country = val
-            break
-    if found_country:
-        sql += " AND country = ?"; params.append(found_country)
+    # 1. ФИЛЬТР ПО СТРАНАМ
+    if any(x in q for x in ["русск", "росси", "советск"]): sql += " AND country = ?"; params.append("Россия")
+    if "япон" in q: sql += " AND country = ?"; params.append("Япония")
+    if any(x in q for x in ["немец", "герман"]): sql += " AND country = ?"; params.append("Германия")
+    if "итальян" in q: sql += " AND country = ?"; params.append("Италия")
+    if any(x in q for x in ["америк", "сша"]): sql += " AND country = ?"; params.append("США")
+    if "коре" in q: sql += " AND country = ?"; params.append("Корея")
+    if "китай" in q: sql += " AND country = ?"; params.append("Китай")
 
-    # --- СПИСОК ИСКЛЮЧЕНИЙ (ВСЕ СЛОВА-ХАРАКТЕРИСТИКИ) ---
+    # 2. ФИЛЬТР ПО КУЗОВУ
+    if any(x in q for x in ["внедорожник", "джип"]): sql += " AND body_type = ?"; params.append("внедорожник")
+    if "седан" in q: sql += " AND body_type = ?"; params.append("седан")
+    if any(x in q for x in ["купе", "спорткар"]): sql += " AND body_type = ?"; params.append("купе")
+    if any(x in q for x in ["хэтчбек", "хетч"]): sql += " AND body_type = ?"; params.append("хэтчбек")
+    if any(x in q for x in ["кроссовер", "паркетник"]): sql += " AND body_type = ?"; params.append("кроссовер")
+    if "город" in q: sql += " AND body_type IN (?, ?, ?)"; params.extend(["седан", "хэтчбек", "кроссовер"])
+
+    # 3. ФИЛЬТР ПО ТОПЛИВУ
+    if any(x in q for x in ["электро", "электрич"]): sql += " AND fuel_type = ?"; params.append("Электро")
+
+    # 4. ХАРАКТЕРИСТИКИ
+    if any(x in q for x in ["красив", "стильн", "модн"]): sql += " AND design_score >= ?"; params.append(4)
+    if any(x in q for x in ["быстр", "мощн", "крут", "гонк", "спортив"]): sql += " AND engine_power >= ?"; params.append(300)
+    if any(x in q for x in ["дешев", "недорог", "бюджетн", "эконом", "доступн", "недоро"]): sql += " AND price <= ?"; params.append(1500000)
+    if any(x in q for x in ["дорог", "люкс", "премиум"]): sql += " AND price >= ?"; params.append(5000000)
+    
+    # 5. СЕМЕЙНАЯ
+    if any(x in q for x in ["семейн", "больш", "вместит"]): sql += " AND body_type IN (?, ?, ?)"; params.extend(["внедорожник", "кроссовер", "универсал"])
+
+    # 6. ПОИСК ПО НАЗВАНИЮ (если это не характеристика)
     features = ["росси", "япон", "немец", "итальян", "америк", "сша", "коре", "китай", 
                 "электро", "электрич", "внедорожник", "джип", "седан", "купе", "спорткар", 
                 "хэтчбек", "хетч", "кроссовер", "паркетник", "город", 
@@ -96,32 +113,12 @@ def search_cars(q, sort_by="default"):
     
     is_feature = any(f in q for f in features)
     
-    if q and not is_feature and not found_country:
-        for rus, eng in brand_map.items():
-            if rus in q:
-                q = q.replace(rus, eng)
-        
+    if q and not is_feature:
         sql += " AND (brand LIKE ? OR model LIKE ?)"
         params.append(f"%{q}%")
         params.append(f"%{q}%")
 
-    if "электро" in q or "электрич" in q:
-        sql += " AND fuel_type = ?"; params.append("Электро")
-    
-    if "внедорожник" in q or "джип" in q: sql += " AND body_type = ?"; params.append("внедорожник")
-    if "седан" in q: sql += " AND body_type = ?"; params.append("седан")
-    if "купе" in q or "спорткар" in q: sql += " AND body_type = ?"; params.append("купе")
-    if "хэтчбек" in q or "хетч" in q: sql += " AND body_type = ?"; params.append("хэтчбек")
-    if "кроссовер" in q or "паркетник" in q: sql += " AND body_type = ?"; params.append("кроссовер")
-    if "город" in q: sql += " AND body_type IN (?, ?, ?)"; params.extend(["седан", "хэтчбек", "кроссовер"])
-
-    if "красив" in q or "стильн" in q or "модн" in q: sql += " AND design_score >= ?"; params.append(4)
-    if "быстр" in q or "мощн" in q or "крут" in q or "гонк" in q or "спортив" in q: sql += " AND engine_power >= ?"; params.append(300)
-    if any(x in q for x in ["дешев", "недорог", "бюджетн", "эконом", "доступн", "недоро"]): sql += " AND price <= ?"; params.append(1500000)
-    if any(x in q for x in ["дорог", "люкс", "премиум"]): sql += " AND price >= ?"; params.append(5000000)
-    
-    if "семейн" in q or "больш" in q or "вместит" in q: sql += " AND body_type IN (?, ?, ?)"; params.extend(["внедорожник", "кроссовер", "универсал"])
-
+    # 7. СОРТИРОВКА
     if sort_by == "price_asc": sql += " ORDER BY price ASC"
     elif sort_by == "power_desc": sql += " ORDER BY engine_power DESC"
     else: sql += " ORDER BY id ASC"
