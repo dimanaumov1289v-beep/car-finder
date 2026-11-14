@@ -55,7 +55,6 @@ def create_temp_db():
 def search_cars(q, sort_by="default"):
     q = q.lower()
     
-    # Словарь стран
     country_map = {
         "русск": "Россия", "росси": "Россия", "советск": "Россия",
         "япон": "Япония", "немец": "Германия", "герман": "Германия",
@@ -63,7 +62,6 @@ def search_cars(q, sort_by="default"):
         "коре": "Корея", "китай": "Китай"
     }
     
-    # Словарь брендов
     brand_map = {
         "лада": "lada", "ваз": "lada", "жигули": "lada", "тойота": "toyota", "хендай": "hyundai", 
         "хендэ": "hyundai", "киа": "kia", "бмв": "bmw", "мерседес": "mercedes", "мерс": "mercedes", 
@@ -80,7 +78,6 @@ def search_cars(q, sort_by="default"):
     sql = "SELECT * FROM Cars WHERE 1=1"
     params = []
     
-    # Поиск по стране
     found_country = None
     for key, val in country_map.items():
         if key in q:
@@ -89,10 +86,13 @@ def search_cars(q, sort_by="default"):
     if found_country:
         sql += " AND country = ?"; params.append(found_country)
 
-    # Поиск по бренду/модели (если это не характеристика)
+    # --- СПИСОК ИСКЛЮЧЕНИЙ (ВСЕ СЛОВА-ХАРАКТЕРИСТИКИ) ---
     features = ["росси", "япон", "немец", "итальян", "америк", "сша", "коре", "китай", 
-                "электро", "внедорожник", "джип", "седан", "купе", "спорткар", "хэтчбек", "кроссовер", 
-                "красив", "стильн", "быстр", "мощн", "дешев", "недорог", "бюджетн", "дорог", "люкс", "семейн", "город"]
+                "электро", "электрич", "внедорожник", "джип", "седан", "купе", "спорткар", 
+                "хэтчбек", "хетч", "кроссовер", "паркетник", "город", 
+                "красив", "стильн", "модн", "быстр", "мощн", "крут", "гонк", "спортив",
+                "дешев", "недорог", "бюджетн", "эконом", "доступн", "недоро", 
+                "дорог", "люкс", "премиум", "семейн", "больш", "вместит"]
     
     is_feature = any(f in q for f in features)
     
@@ -105,28 +105,23 @@ def search_cars(q, sort_by="default"):
         params.append(f"%{q}%")
         params.append(f"%{q}%")
 
-    # --- ИСПРАВЛЕННЫЙ БЛОК ПРО ТОПЛИВО ---
     if "электро" in q or "электрич" in q:
         sql += " AND fuel_type = ?"; params.append("Электро")
     
-    # Кузов
     if "внедорожник" in q or "джип" in q: sql += " AND body_type = ?"; params.append("внедорожник")
     if "седан" in q: sql += " AND body_type = ?"; params.append("седан")
     if "купе" in q or "спорткар" in q: sql += " AND body_type = ?"; params.append("купе")
     if "хэтчбек" in q or "хетч" in q: sql += " AND body_type = ?"; params.append("хэтчбек")
-    if "кроссовер" in q: sql += " AND body_type = ?"; params.append("кроссовер")
+    if "кроссовер" in q or "паркетник" in q: sql += " AND body_type = ?"; params.append("кроссовер")
     if "город" in q: sql += " AND body_type IN (?, ?, ?)"; params.extend(["седан", "хэтчбек", "кроссовер"])
 
-    # Характеристики
-    if "красив" in q or "стильн" in q: sql += " AND design_score >= ?"; params.append(4)
-    if "быстр" in q or "мощн" in q: sql += " AND engine_power >= ?"; params.append(300)
-    if "дешев" in q or "недорог" in q or "бюджетн" in q: sql += " AND price <= ?"; params.append(1500000)
-    if "дорог" in q or "люкс" in q: sql += " AND price >= ?"; params.append(5000000)
+    if "красив" in q or "стильн" in q or "модн" in q: sql += " AND design_score >= ?"; params.append(4)
+    if "быстр" in q or "мощн" in q or "крут" in q or "гонк" in q or "спортив" in q: sql += " AND engine_power >= ?"; params.append(300)
+    if any(x in q for x in ["дешев", "недорог", "бюджетн", "эконом", "доступн", "недоро"]): sql += " AND price <= ?"; params.append(1500000)
+    if any(x in q for x in ["дорог", "люкс", "премиум"]): sql += " AND price >= ?"; params.append(5000000)
     
-    # Семейная
-    if "семейн" in q: sql += " AND body_type IN (?, ?, ?)"; params.extend(["внедорожник", "кроссовер", "универсал"])
+    if "семейн" in q or "больш" in q or "вместит" in q: sql += " AND body_type IN (?, ?, ?)"; params.extend(["внедорожник", "кроссовер", "универсал"])
 
-    # Сортировка
     if sort_by == "price_asc": sql += " ORDER BY price ASC"
     elif sort_by == "power_desc": sql += " ORDER BY engine_power DESC"
     else: sql += " ORDER BY id ASC"
