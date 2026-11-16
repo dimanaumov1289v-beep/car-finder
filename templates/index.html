@@ -1,168 +1,37 @@
-<!DOCTYPE html>
-<html lang="ru">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>АвтоПоиск | Умный сервис</title>
-    <style>
-        /* Сброс стилей и базовые настройки */
-        * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
-        body { background-color: #121212; color: #e0e0e0; min-height: 100vh; display: flex; flex-direction: column; }
-        
-        /* Навигация (Меню) */
-        header { background-color: #1e1e1e; padding: 15px 50px; display: flex; justify-content: space-between; align-items: center; box-shadow: 0 2px 10px rgba(0,0,0,0.5); }
-        .logo { font-size: 24px; font-weight: bold; color: #007bff; text-decoration: none; }
-        .logo span { color: #fff; }
-        nav a { color: #bbb; text-decoration: none; margin-left: 20px; font-size: 16px; transition: color 0.3s; }
-        nav a:hover { color: #007bff; }
-        
-        /* Главный контейнер */
-        main { flex: 1; max-width: 1200px; margin: 0 auto; padding: 40px 20px; width: 100%; }
-        
-        /* Заголовок и поиск */
-        .hero { text-align: center; margin-bottom: 30px; }
-        .hero h1 { font-size: 36px; margin-bottom: 10px; color: #fff; }
-        .hero p { color: #888; margin-bottom: 25px; }
-        .search-box { display: flex; justify-content: center; max-width: 700px; margin: 0 auto; }
-        .search-box input { flex: 1; padding: 15px 20px; border-radius: 30px 0 0 30px; border: 2px solid #333; background: #1e1e1e; color: white; font-size: 16px; outline: none; transition: border 0.3s; }
-        .search-box input:focus { border-color: #007bff; }
-        .search-box button { padding: 15px 30px; border-radius: 0 30px 30px 0; border: none; background: #007bff; color: white; font-size: 16px; cursor: pointer; font-weight: bold; transition: background 0.3s; }
-        .search-box button:hover { background: #0056b3; }
-        
-        /* Подсказки (теги) */
-        .tags { text-align: center; margin-top: 15px; }
-        .tag { display: inline-block; background: #2a2a2a; padding: 5px 12px; border-radius: 15px; font-size: 13px; color: #aaa; margin: 5px; cursor: pointer; text-decoration: none; transition: background 0.3s, color 0.3s; }
-        .tag:hover { background: #007bff; color: white; }
-
-        /* Панель сортировки */
-        .sort-panel { text-align: center; margin-bottom: 30px; background: #1e1e1e; padding: 10px; border-radius: 10px; display: inline-block; }
-        .sort-panel span { color: #888; margin-right: 10px; font-size: 14px; }
-        .sort-btn { display: inline-block; background: #2a2a2a; padding: 5px 15px; border-radius: 15px; font-size: 14px; color: #aaa; margin: 0 5px; cursor: pointer; text-decoration: none; transition: background 0.3s; }
-        .sort-btn:hover, .sort-btn.active { background: #007bff; color: white; }
-
-        /* Сетка карточек */
-        .cars-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 20px; }
-        
-        /* Карточка машины */
-        .car-card { background: #1e1e1e; border-radius: 12px; padding: 20px; border: 1px solid #333; transition: transform 0.2s, box-shadow 0.2s; display: flex; flex-direction: column; justify-content: space-between; position: relative; }
-        .car-card:hover { transform: translateY(-5px); box-shadow: 0 10px 20px rgba(0,0,0,0.5); border-color: #007bff; }
-        
-        .car-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 15px; }
-        .car-title { font-size: 20px; font-weight: bold; color: #fff; text-decoration: none; margin-bottom: 5px; display: block; }
-        .car-title:hover { color: #007bff; }
-        .car-country { font-size: 12px; background: #333; padding: 3px 8px; border-radius: 10px; color: #aaa; }
-        
-        /* Кнопка избранного (сердечко) */
-        .fav-btn { position: absolute; top: 15px; right: 15px; font-size: 24px; text-decoration: none; transition: transform 0.2s; }
-        .fav-btn:hover { transform: scale(1.2); }
-
-        .car-specs { display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 20px; font-size: 14px; color: #bbb; }
-        .spec-item { background: #2a2a2a; padding: 5px 10px; border-radius: 6px; display: flex; align-items: center; gap: 5px; }
-        
-        .car-footer { display: flex; justify-content: space-between; align-items: center; border-top: 1px solid #333; padding-top: 15px; }
-        .car-price { font-size: 22px; font-weight: bold; color: #28a745; }
-        
-        .btn-buy { background: #007bff; color: white; text-decoration: none; padding: 10px 20px; border-radius: 8px; font-weight: bold; transition: background 0.3s; }
-        .btn-buy:hover { background: #0056b3; }
-
-        /* Сообщение об отсутствии результатов */
-        .no-results { text-align: center; padding: 50px; background: #1e1e1e; border-radius: 12px; border: 1px dashed #444; }
-        .no-results h2 { color: #ff6b6b; margin-bottom: 10px; }
-
-        /* Футер */
-        footer { text-align: center; padding: 20px; background: #1e1e1e; color: #666; font-size: 14px; margin-top: auto; }
-    </style>
-</head>
-<body>
-
-    <!-- Шапка сайта -->
-    <header>
-        <a href="/" class="logo">Авто<span>Поиск</span></a>
-        <nav>
-            <a href="/">Все авто</a>
-            <a href="/electric">Электромобили</a>
-            <a href="/cheap">Бюджетные</a>
-            <a href="/favorites" style="color: #ff4757; font-weight: bold;">❤️ Избранное</a>
-        </nav>
-    </header>
-
-    <!-- Основной контент -->
-    <main>
-        <div class="hero">
-            <h1>{{ title }}</h1>
-            <p>Опишите машину своими словами. Например: "мощная немецкая" или "недорогая городская"</p>
-            
-            <form action="/search" method="POST" class="search-box">
-                <input type="text" name="query" placeholder="Введите ваш запрос..." value="{{ query or '' }}" required>
-                <!-- Скрытое поле для сохранения сортировки при поиске -->
-                <input type="hidden" name="sort" value="{{ sort or 'default' }}">
-                <button type="submit">Искать</button>
-            </form>
-            
-            <div class="tags">
-                <a href="/electric" class="tag">⚡ Электрическая</a>
-                <a href="/cheap" class="tag">💰 Недорогая</a>
-                <a href="/search?query=красивая" class="tag" onclick="document.forms[0].query.value='красивая'; document.forms[0].submit(); return false;">✨ Красивая</a>
-                <a href="/search?query=мощная" class="tag" onclick="document.forms[0].query.value='мощная'; document.forms[0].submit(); return false;">🚀 Мощная</a>
-                <a href="/search?query=семейная" class="tag" onclick="document.forms[0].query.value='семейная'; document.forms[0].submit(); return false;">👨‍👩‍👧‍👦 Семейная</a>
-            </div>
-        </div>
-
-        <!-- Панель сортировки -->
-        <div style="text-align: center;">
-            <div class="sort-panel">
-                <span>Сортировать:</span>
-                <a href="?sort=default" class="sort-btn {% if sort == 'default' or not sort %}active{% endif %}">По умолчанию</a>
-                <a href="?sort=price_asc" class="sort-btn {% if sort == 'price_asc' %}active{% endif %}">Сначала дешевые</a>
-                <a href="?sort=power_desc" class="sort-btn {% if sort == 'power_desc' %}active{% endif %}">Сначала мощные</a>
-            </div>
-        </div>
-
-        <!-- Сетка с машинами -->
-        {% if results %}
-            <div class="cars-grid">
-                {% for car in results %}
-                    <div class="car-card">
-                        <!-- Сердечко для избранного -->
-                        <a href="/favorite/{{ car[0] }}" class="fav-btn" title="Добавить в избранное">
-                            {% if favorites and car[0] in favorites %}❤️{% else %}🤍{% endif %}
-                        </a>
-
-                        <div>
-                            <div class="car-header">
-                                <a href="/car/{{ car[0] }}" class="car-title">{{ car[1] }} {{ car[2] }}</a>
-                            </div>
-                            <div style="margin-bottom: 10px;">
-                                <span class="car-country">{{ car[3] }}</span>
-                            </div>
-                            
-                            <div class="car-specs">
-                                <span class="spec-item">🚗 {{ car[4] }}</span>
-                                <span class="spec-item">⚙️ {{ car[5] }} л.с.</span>
-                                <span class="spec-item">⛽ {{ car[9] }}</span>
-                                <span class="spec-item">⭐ {{ car[7] }}/5</span>
-                            </div>
-                        </div>
-                        
-                        <div class="car-footer">
-                            <span class="car-price">{{ "{:,}".format(car[8]) }} ₽</span>
-                            <a href="/buy/{{ car[0] }}" class="btn-buy">Купить</a>
-                        </div>
-                    </div>
-                {% endfor %}
-            </div>
-        {% else %}
-            <div class="no-results">
-                <h2>Ничего не найдено 😕</h2>
-                <p>Попробуйте изменить запрос или используйте подсказки выше.</p>
-            </div>
-        {% endif %}
-    </main>
-
-    <!-- Подвал -->
-    <footer>
-        &copy; 2024 АвтоПоиск. Школьный проект.
-    </footer>
-
-</body>
-</html>
+{% extends 'base.html' %}
+{% block content %}
+<section class="hero">
+<div class="hero-copy"><p class="eyebrow"><span class="dot"></span> ПОДБОР ПО ВАШЕМУ ОПИСАНИЮ</p>
+<h1>Ваша следующая машина.<br><span>Вашими словами.</span></h1>
+<p class="lead">Расскажите, что вам нужно. Мы подберём модели из каталога и покажем, почему они подходят.</p>
+<div class="hero-notes"><span>01 / Опишите пожелания</span><span>02 / Сравните модели</span><span>03 / Сохраните выбор</span></div></div>
+<aside class="example"><div class="example-top"><span>ПОПРОБУЙТЕ, НАПРИМЕР</span><span aria-hidden="true">↗</span></div>
+<p>«Красивая японская<br>машина до 6 млн»</p>
+<div class="example-tags"><span>Япония</span><span>Дизайн ≥ 4</span><span>До 6 млн ₽</span></div>
+<a href="{{ url_for('home', query='красивая японская машина до 6 млн') }}">Посмотреть подборку <span aria-hidden="true">→</span></a></aside>
+</section>
+<section class="search-section" aria-label="Поиск автомобиля">
+<form action="{{ url_for('show_favorites' if favorites_only else 'home') }}" method="get">
+<label for="query">Какую машину вы ищете?</label>
+<div class="search-row"><span class="search-icon" aria-hidden="true">⌕</span><input id="query" name="query" value="{{ query }}" maxlength="300" placeholder="Например: недорогая Toyota или кроссовер до 3 млн" type="search"><input type="hidden" name="sort" value="{{ sort }}"><button class="button" type="submit">Подобрать <span aria-hidden="true">→</span></button></div>
+</form>
+<div class="suggestions"><span>Быстрый выбор:</span>{% for text in ['Красивая', 'Недорогая', 'Семейная', 'Электромобиль', 'Мощная немецкая'] %}<a href="{{ url_for('home', query=text) }}">{{ text }} <span aria-hidden="true">↗</span></a>{% endfor %}</div>
+</section>
+<section class="catalogue" aria-labelledby="catalogue-title">
+<div class="results-toolbar"><div><p class="eyebrow">{{ 'ВАША КОЛЛЕКЦИЯ' if favorites_only else 'ИССЛЕДУЙТЕ КАТАЛОГ' }}</p><h2 id="catalogue-title">{{ title }} <span class="count">{{ results|length }}</span></h2></div>
+<form action="{{ url_for('show_favorites' if favorites_only else 'home') }}" method="get" class="sort-form"><input type="hidden" name="query" value="{{ query }}"><label for="sort">Сортировка</label><div><select id="sort" name="sort">{% for value, label in sorts.items() %}<option value="{{ value }}" {% if sort == value %}selected{% endif %}>{{ label }}</option>{% endfor %}</select><button class="button subtle" type="submit">Применить</button></div></form></div>
+{% if plan.labels %}<div class="criteria"><span>Поняли запрос:</span>{% for label in plan.labels %}<span class="criterion">{{ label }}</span>{% endfor %}<a href="{{ url_for('show_favorites' if favorites_only else 'home') }}">Сбросить ×</a></div>{% endif %}
+{% for warning in plan.warnings %}<p class="notice" role="status">{{ warning }}</p>{% endfor %}
+{% if plan.unknown %}<p class="notice" role="status">Не удалось распознать: «{{ plan.unknown|join(' ') }}». Уточните запрос: используйте марку, модель, страну, кузов, бюджет, «красивая» или «мощная». <a href="{{ url_for('about') }}">Примеры запросов</a></p>{% endif %}
+{% if results %}
+<div class="cars-grid">{% for car in results %}<article class="car-card">
+<div class="card-top"><span class="category">{{ car.body_type }} <span>·</span> {{ car.country }}</span><form action="{{ url_for('toggle_favorite', car_id=car.id) }}" method="post"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><input type="hidden" name="next" value="{{ request.full_path }}"><button class="favorite {% if car.id in favorites %}saved{% endif %}" type="submit" aria-label="{{ 'Убрать из избранного' if car.id in favorites else 'Добавить в избранное' }}: {{ car.brand }} {{ car.model }}" aria-pressed="{{ 'true' if car.id in favorites else 'false' }}">{{ '♥' if car.id in favorites else '♡' }}</button></form></div>
+<a class="car-heading" href="{{ url_for('car_details', car_id=car.id) }}"><span>{{ car.brand }}</span><h3>{{ car.model }}</h3></a>
+<div class="rating"><span class="star" aria-hidden="true">★</span><strong>{{ '%.1f'|format(car.design_score) }}</strong><span>/ 5 · дизайн</span><span class="rating-source">{{ (car.votes|vote_count) if car.votes else 'Демо' }}</span></div>
+<dl class="specs"><div><dt>Мощность</dt><dd>{{ car.engine_power }} л.с.</dd></div><div><dt>Двигатель</dt><dd>{{ car.fuel_type }}</dd></div><div><dt>Объём</dt><dd>{{ '—' if car.fuel_type == 'Электро' else (car.engine_volume|string + ' л') }}</dd></div></dl>
+<div class="card-bottom"><div><span class="price-label">Ориентир из учебной базы</span><strong class="price">{{ car.price|rubles }}</strong></div><div class="card-actions"><a class="button buy-button" href="{{ url_for('buy_car', car_id=car.id) }}" target="_blank" rel="noopener noreferrer" aria-label="Купить на Дроме: {{ car.brand }} {{ car.model }} (новая вкладка)" title="Объявления этой модели на Дроме, новая вкладка">Купить ↗</a><a class="details-link" href="{{ url_for('car_details', car_id=car.id) }}" aria-label="Подробнее: {{ car.brand }} {{ car.model }}">↗</a></div></div>
+</article>{% endfor %}</div>
+{% else %}<div class="empty"><span aria-hidden="true">⌕</span><h3>{{ 'Здесь пока нет автомобилей' if favorites_only and not query else 'Подходящих моделей не нашлось' }}</h3><p>{{ 'Нажмите на сердечко в карточке, чтобы сохранить понравившуюся машину.' if favorites_only and not query else 'Уточните непонятные слова или уберите часть условий. Каталог содержит только 32 модели; поиск соблюдает все выбранные ограничения.' }}</p><a class="button" href="{{ url_for('home') }}">Открыть весь каталог</a></div>{% endif %}
+<p class="data-note">Цены и характеристики — демонстрационные данные, без привязки к году выпуска и комплектации. Это не предложения о продаже. <a href="{{ url_for('about') }}">Подробнее о данных ↗</a></p>
+</section>
+{% endblock %}

@@ -1,201 +1,221 @@
-from flask import Flask, render_template, request, session, redirect, url_for
-import sqlite3
+"""АвтоПоиск: учебный каталог с локальным поиском и рейтингом дизайна."""
+import json
 import os
+from pathlib import Path
+import secrets
+import sqlite3
+from urllib.parse import urlsplit
 
-app = Flask(__name__)
-app.secret_key = 'super_secret_key_for_school_project'
+from flask import Flask, abort, g, redirect, render_template, request, session, url_for
+from search import SORTS, parse_query, select_cars
+from marketplace import drom_url
 
-CARS_DATA = [
-    ('Lada', 'Niva', 'Россия', 'внедорожник', 80, 1.7, 3, 800000, 'Бензин'),
-    ('Lada', 'Vesta', 'Россия', 'седан', 106, 1.6, 4, 1200000, 'Бензин'),
-    ('Lada', 'Granta', 'Россия', 'седан', 87, 1.6, 3, 700000, 'Бензин'),
-    ('Lada', 'Niva Legend', 'Россия', 'внедорожник', 83, 1.7, 3, 950000, 'Бензин'),
-    ('UAZ', 'Patriot', 'Россия', 'внедорожник', 150, 2.7, 3, 1500000, 'Бензин'),
-    ('GAZ', 'Volga Siber', 'Россия', 'седан', 143, 2.4, 3, 600000, 'Бензин'),
-    ('Moskvich', '3', 'Россия', 'кроссовер', 150, 1.5, 2, 1900000, 'Бензин'),
-    ('Toyota', 'Camry', 'Япония', 'седан', 200, 2.5, 5, 3000000, 'Бензин'),
-    ('Toyota', 'Supra', 'Япония', 'купе', 340, 3.0, 5, 5500000, 'Бензин'),
-    ('Toyota', 'Land Cruiser', 'Япония', 'внедорожник', 249, 4.0, 4, 8000000, 'Бензин'),
-    ('Honda', 'Civic Type R', 'Япония', 'хэтчбек', 320, 2.0, 4, 4500000, 'Бензин'),
-    ('Nissan', 'Leaf', 'Япония', 'хэтчбек', 150, 0.0, 3, 2000000, 'Электро'),
-    ('Nissan', 'GT-R R35', 'Япония', 'купе', 570, 3.8, 5, 8000000, 'Бензин'),
-    ('BMW', 'M3', 'Германия', 'купе', 510, 3.0, 5, 7000000, 'Бензин'),
-    ('BMW', 'i4', 'Германия', 'седан', 340, 0.0, 4, 5000000, 'Электро'),
-    ('Mercedes-Benz', 'S-Class', 'Германия', 'седан', 435, 4.0, 5, 12000000, 'Бензин'),
-    ('Audi', 'R8', 'Германия', 'купе', 570, 5.2, 5, 14000000, 'Бензин'),
-    ('Porsche', 'Taycan', 'Германия', 'седан', 408, 0.0, 5, 8500000, 'Электро'),
-    ('Porsche', '911', 'Германия', 'купе', 385, 3.0, 5, 10000000, 'Бензин'),
-    ('Volkswagen', 'Polo', 'Германия', 'хэтчбек', 110, 1.6, 3, 1500000, 'Бензин'),
-    ('Ferrari', 'Roma', 'Италия', 'купе', 620, 3.9, 5, 20000000, 'Бензин'),
-    ('Ford', 'Mustang', 'США', 'купе', 450, 5.0, 4, 4500000, 'Бензин'),
-    ('Tesla', 'Model S', 'США', 'седан', 670, 0.0, 4, 6000000, 'Электро'),
-    ('Tesla', 'Model 3', 'США', 'седан', 283, 0.0, 4, 3500000, 'Электро'),
-    ('Tesla', 'Model Y', 'США', 'кроссовер', 456, 0.0, 4, 4500000, 'Электро'),
-    ('Kia', 'Rio', 'Корея', 'седан', 123, 1.6, 4, 1300000, 'Бензин'),
-    ('Hyundai', 'Solaris', 'Корея', 'седан', 123, 1.6, 3, 1200000, 'Бензин'),
-    ('Hyundai', 'Ioniq 5', 'Корея', 'кроссовер', 325, 0.0, 5, 4500000, 'Электро'),
-    ('Geely', 'Monjaro', 'Китай', 'кроссовер', 238, 2.0, 4, 3500000, 'Бензин'),
-    ('Haval', 'Jolion', 'Китай', 'кроссовер', 143, 1.5, 3, 2000000, 'Бензин'),
-    ('BYD', 'Han', 'Китай', 'седан', 517, 0.0, 4, 4500000, 'Электро'),
-    ('Zeekr', '001', 'Китай', 'седан', 544, 0.0, 5, 5000000, 'Электро')
-]
+ROOT = Path(__file__).resolve().parent
 
-def create_temp_db():
-    conn = sqlite3.connect(':memory:')
-    conn.row_factory = sqlite3.Row
-    cursor = conn.cursor()
-    cursor.execute('''CREATE TABLE Cars (
-        id INTEGER PRIMARY KEY AUTOINCREMENT, brand TEXT, model TEXT, country TEXT, 
-        body_type TEXT, engine_power INTEGER, engine_volume REAL, design_score INTEGER, price INTEGER, fuel_type TEXT)''')
-    cars_with_ids = [(i+1,) + car for i, car in enumerate(CARS_DATA)]
-    cursor.executemany('''INSERT INTO Cars (id, brand, model, country, body_type, engine_power, engine_volume, design_score, price, fuel_type) 
-                          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)''', cars_with_ids)
-    return conn
 
-def search_cars(q, sort_by="default"):
-    q = q.lower()
-    
-    # Замена брендов
-    brand_map = {
-        "лада": "lada", "ваз": "lada", "жигули": "lada", "тойота": "toyota", "хендай": "hyundai", 
-        "хендэ": "hyundai", "киа": "kia", "бмв": "bmw", "мерседес": "mercedes", "мерс": "mercedes", 
-        "ауди": "audi", "порше": "porsche", "фольксваген": "volkswagen", "фольц": "volkswagen", 
-        "тесла": "tesla", "форд": "ford", "шевроле": "chevrolet", "ниссан": "nissan", "хонда": "honda", 
-        "мазда": "mazda", "субару": "subaru", "лексус": "lexus", "феррари": "ferrari", 
-        "ламборгини": "lamborghini", "ламбо": "lamborghini", "альфа": "alfa", "джили": "geely", 
-        "чери": "chery", "хавал": "haval", "эксид": "exeed", "омода": "omoda", "танк": "tank", 
-        "уаз": "uaz", "газ": "gaz", "москвич": "moskvich"
-    }
-    for rus, eng in brand_map.items():
-        if rus in q: q = q.replace(rus, eng)
+def create_app(test_config=None):
+    app = Flask(__name__, instance_relative_config=True)
+    app.config.from_mapping(
+        DATABASE=os.environ.get('DATABASE_PATH', str(Path(app.instance_path) / 'cars.sqlite3')),
+        MAX_CONTENT_LENGTH=16 * 1024,
+        SESSION_COOKIE_HTTPONLY=True,
+        SESSION_COOKIE_SAMESITE='Lax',
+        SESSION_COOKIE_SECURE=os.environ.get('COOKIE_SECURE') == '1',
+    )
+    if test_config:
+        app.config.update(test_config)
+    Path(app.config['DATABASE']).parent.mkdir(parents=True, exist_ok=True)
+    # Ключ сохраняется между перезапусками и одинаков для всех gunicorn workers.
+    if not app.config.get('SECRET_KEY'):
+        app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY')
+    if not app.config.get('SECRET_KEY'):
+        key_path = Path(app.config['DATABASE']).with_suffix('.key')
+        try:
+            fd = os.open(key_path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+        except FileExistsError:
+            pass
+        else:
+            with os.fdopen(fd, 'w') as stream:
+                stream.write(secrets.token_hex(32))
+        app.config['SECRET_KEY'] = key_path.read_text().strip()
+        if not app.config['SECRET_KEY']:
+            raise RuntimeError('Пустой файл ключа сессии. Укажите SECRET_KEY в окружении.')
 
-    conn = create_temp_db()
-    cursor = conn.cursor()
-    sql = "SELECT * FROM Cars WHERE 1=1"
-    params = []
-    
-    # 1. ФИЛЬТР ПО СТРАНАМ
-    if any(x in q for x in ["русск", "росси", "советск"]): sql += " AND country = ?"; params.append("Россия")
-    if "япон" in q: sql += " AND country = ?"; params.append("Япония")
-    if any(x in q for x in ["немец", "герман"]): sql += " AND country = ?"; params.append("Германия")
-    if "итальян" in q: sql += " AND country = ?"; params.append("Италия")
-    if any(x in q for x in ["америк", "сша"]): sql += " AND country = ?"; params.append("США")
-    if "коре" in q: sql += " AND country = ?"; params.append("Корея")
-    if "китай" in q: sql += " AND country = ?"; params.append("Китай")
+    def db():
+        if 'db' not in g:
+            g.db = sqlite3.connect(app.config['DATABASE'], timeout=15)
+            g.db.row_factory = sqlite3.Row
+            g.db.execute('PRAGMA foreign_keys = ON')
+        return g.db
 
-    # 2. ФИЛЬТР ПО КУЗОВУ
-    if any(x in q for x in ["внедорожник", "джип"]): sql += " AND body_type = ?"; params.append("внедорожник")
-    if "седан" in q: sql += " AND body_type = ?"; params.append("седан")
-    if any(x in q for x in ["купе", "спорткар"]): sql += " AND body_type = ?"; params.append("купе")
-    if any(x in q for x in ["хэтчбек", "хетч"]): sql += " AND body_type = ?"; params.append("хэтчбек")
-    if any(x in q for x in ["кроссовер", "паркетник"]): sql += " AND body_type = ?"; params.append("кроссовер")
-    if "город" in q: sql += " AND body_type IN (?, ?, ?)"; params.extend(["седан", "хэтчбек", "кроссовер"])
+    @app.teardown_appcontext
+    def close_db(error=None):
+        connection = g.pop('db', None)
+        if connection is not None:
+            connection.close()
 
-    # 3. ФИЛЬТР ПО ТОПЛИВУ
-    if any(x in q for x in ["электро", "электрич"]): sql += " AND fuel_type = ?"; params.append("Электро")
+    with app.app_context():
+        db().executescript('''
+            CREATE TABLE IF NOT EXISTS cars (
+                id INTEGER PRIMARY KEY, brand TEXT NOT NULL, model TEXT NOT NULL,
+                country TEXT NOT NULL, body_type TEXT NOT NULL, engine_power INTEGER NOT NULL,
+                engine_volume REAL NOT NULL, demo_design_score REAL NOT NULL,
+                price INTEGER NOT NULL, fuel_type TEXT NOT NULL
+            );
+            CREATE TABLE IF NOT EXISTS ratings (
+                car_id INTEGER NOT NULL REFERENCES cars(id), voter TEXT NOT NULL,
+                score INTEGER NOT NULL CHECK(score BETWEEN 1 AND 5),
+                PRIMARY KEY(car_id, voter)
+            );
+        ''')
+        seed = json.loads((ROOT / 'data/cars.json').read_text())
+        db().executemany('''INSERT OR IGNORE INTO cars VALUES
+            (:id,:brand,:model,:country,:body_type,:engine_power,:engine_volume,:demo_design_score,:price,:fuel_type)''', seed)
+        db().commit()
 
-    # 4. ХАРАКТЕРИСТИКИ
-    if any(x in q for x in ["красив", "стильн", "модн"]): sql += " AND design_score >= ?"; params.append(4)
-    if any(x in q for x in ["быстр", "мощн", "крут", "гонк", "спортив"]): sql += " AND engine_power >= ?"; params.append(300)
-    if any(x in q for x in ["дешев", "недорог", "бюджетн", "эконом", "доступн", "недоро"]): sql += " AND price <= ?"; params.append(1500000)
-    if any(x in q for x in ["дорог", "люкс", "премиум"]): sql += " AND price >= ?"; params.append(5000000)
-    
-    # 5. СЕМЕЙНАЯ
-    if any(x in q for x in ["семейн", "больш", "вместит"]): sql += " AND body_type IN (?, ?, ?)"; params.extend(["внедорожник", "кроссовер", "универсал"])
+    def catalogue():
+        rows = db().execute('''SELECT c.*, COUNT(r.score) AS votes,
+            COALESCE(AVG(r.score), c.demo_design_score) AS design_score
+            FROM cars c LEFT JOIN ratings r ON c.id=r.car_id GROUP BY c.id''').fetchall()
+        return [dict(row) for row in rows]
 
-    # 6. ПОИСК ПО НАЗВАНИЮ (если это не характеристика)
-    features = ["росси", "япон", "немец", "итальян", "америк", "сша", "коре", "китай", 
-                "электро", "электрич", "внедорожник", "джип", "седан", "купе", "спорткар", 
-                "хэтчбек", "хетч", "кроссовер", "паркетник", "город", 
-                "красив", "стильн", "модн", "быстр", "мощн", "крут", "гонк", "спортив",
-                "дешев", "недорог", "бюджетн", "эконом", "доступн", "недоро", 
-                "дорог", "люкс", "премиум", "семейн", "больш", "вместит"]
-    
-    is_feature = any(f in q for f in features)
-    
-    if q and not is_feature:
-        sql += " AND (brand LIKE ? OR model LIKE ?)"
-        params.append(f"%{q}%")
-        params.append(f"%{q}%")
+    def get_car(car_id):
+        car = next((car for car in catalogue() if car['id'] == car_id), None)
+        if car is None:
+            abort(404)
+        return car
 
-    # 7. СОРТИРОВКА
-    if sort_by == "price_asc": sql += " ORDER BY price ASC"
-    elif sort_by == "power_desc": sql += " ORDER BY engine_power DESC"
-    else: sql += " ORDER BY id ASC"
+    @app.context_processor
+    def template_context():
+        if 'csrf' not in session:
+            session['csrf'] = secrets.token_hex(32)
+        return dict(csrf_token=session['csrf'], favorites=session.get('favorites', []), sorts=SORTS)
 
-    cursor.execute(sql, params)
-    results = cursor.fetchall()
-    conn.close()
-    return results
+    @app.template_filter('rubles')
+    def rubles(value):
+        return f'{value:,.0f}'.replace(',', ' ') + ' ₽'
 
-@app.route('/')
-def home():
-    sort = request.args.get('sort', 'default')
-    return render_template('index.html', results=search_cars("", sort), searched=False, title="Все автомобили", query="", sort=sort, favorites=session.get('favorites', []))
+    @app.template_filter('vote_count')
+    def vote_count(value):
+        ending = 'оценок' if 11 <= value % 100 <= 14 else 'оценка' if value % 10 == 1 else 'оценки' if value % 10 in (2, 3, 4) else 'оценок'
+        return f'{value} {ending}'
 
-@app.route('/search', methods=['POST'])
-def search_post():
-    q = request.form['query'].lower()
-    sort = request.form.get('sort', 'default')
-    return render_template('index.html', results=search_cars(q, sort), searched=True, title=f"Результаты: {q}", query=q, sort=sort, favorites=session.get('favorites', []))
+    @app.before_request
+    def protect_forms():
+        if request.method == 'POST':
+            token = request.form.get('csrf_token', '')
+            if not token or not secrets.compare_digest(token, session.get('csrf', '')):
+                abort(400, description='Форма устарела. Обновите страницу и повторите действие.')
 
-@app.route('/search', methods=['GET'])
-def search_get():
-    q = request.args.get('query', '').lower()
-    sort = request.args.get('sort', 'default')
-    title = f"Результаты: {q}" if q else "Все автомобили"
-    return render_template('index.html', results=search_cars(q, sort), searched=bool(q), title=title, query=q, sort=sort, favorites=session.get('favorites', []))
+    @app.after_request
+    def headers(response):
+        response.headers['X-Content-Type-Options'] = 'nosniff'
+        response.headers['Referrer-Policy'] = 'strict-origin-when-cross-origin'
+        response.headers['Content-Security-Policy'] = "default-src 'self'; style-src 'self'; img-src 'self'; form-action 'self'; frame-ancestors 'none'; base-uri 'self'"
+        response.headers['Cache-Control'] = 'no-store'
+        return response
 
-@app.route('/electric')
-def electric():
-    return render_template('index.html', results=search_cars("электрическая"), searched=False, title="Электромобили", query="электрическая", sort="default", favorites=session.get('favorites', []))
+    def listing(favorites_only=False):
+        query = request.args.get('query', '').strip()
+        if len(query) > 300:
+            abort(400, description='Запрос должен быть не длиннее 300 символов.')
+        sort = request.args.get('sort', 'default')
+        if sort not in SORTS:
+            sort = 'default'
+        cars = catalogue()
+        plan = parse_query(query, cars)
+        if favorites_only:
+            cars = [car for car in cars if car['id'] in session.get('favorites', [])]
+        return render_template('index.html', results=select_cars(cars, plan, sort),
+                               query=query, sort=sort, plan=plan, favorites_only=favorites_only,
+                               title='Избранное' if favorites_only else 'Каталог автомобилей',
+                               total=len(cars))
 
-@app.route('/cheap')
-def cheap():
-    return render_template('index.html', results=search_cars("недорогая"), searched=False, title="Бюджетные авто", query="недорогая", sort="default", favorites=session.get('favorites', []))
+    @app.get('/')
+    @app.get('/search')
+    def home():
+        return listing()
 
-@app.route('/favorite/<int:car_id>')
-def toggle_favorite(car_id):
-    if 'favorites' not in session: session['favorites'] = []
-    favorites = session['favorites']
-    if car_id in favorites: favorites.remove(car_id)
-    else: favorites.append(car_id)
-    session['favorites'] = favorites
-    return redirect(request.referrer or url_for('home'))
+    @app.get('/electric')
+    def electric():
+        return redirect(url_for('home', query='электромобиль'))
 
-@app.route('/favorites')
-def show_favorites():
-    if 'favorites' not in session or not session['favorites']:
-        return render_template('index.html', results=[], searched=True, title="Избранное", query="", sort="default", favorites=[], message="У вас пока нет избранных машин.")
-    conn = create_temp_db()
-    placeholders = ','.join('?' for _ in session['favorites'])
-    cursor = conn.cursor()
-    cursor.execute(f"SELECT * FROM Cars WHERE id IN ({placeholders})", session['favorites'])
-    results = cursor.fetchall()
-    conn.close()
-    return render_template('index.html', results=results, searched=True, title="Избранное", query="", sort="default", favorites=session['favorites'])
+    @app.get('/cheap')
+    def cheap():
+        return redirect(url_for('home', query='недорогая'))
 
-@app.route('/car/<int:car_id>')
-def car_details(car_id):
-    conn = create_temp_db()
-    car = conn.execute("SELECT * FROM Cars WHERE id = ?", (car_id,)).fetchone()
-    conn.close()
-    if car: return render_template('car.html', car=car)
-    return "Машина не найдена", 404
+    @app.get('/favorites')
+    def show_favorites():
+        return listing(favorites_only=True)
 
-@app.route('/buy/<int:car_id>')
-def buy_car(car_id):
-    conn = create_temp_db()
-    car = conn.execute("SELECT * FROM Cars WHERE id = ?", (car_id,)).fetchone()
-    conn.close()
-    if car:
-        brand_slug = car['brand'].lower().replace(' ', '_')
-        model_slug = car['model'].lower().replace(' ', '_')
-        if brand_slug == 'mercedes-benz': brand_slug = 'mercedes'
-        drom_url = f"https://auto.drom.ru/{brand_slug}/{model_slug}/"
-        return render_template('buy.html', car=car, drom_url=drom_url)
-    return "Машина не найдена", 404
+    def safe_next():
+        target = request.form.get('next', '/')
+        try:
+            parts = urlsplit(target)
+        except ValueError:
+            return url_for('home')
+        if parts.scheme or parts.netloc or not target.startswith('/') or target.startswith('//') or '\\' in target or any(ord(c) < 32 for c in target):
+            return url_for('home')
+        return target
+
+    @app.post('/favorite/<int:car_id>')
+    def toggle_favorite(car_id):
+        get_car(car_id)
+        favorites = session.get('favorites', [])
+        if car_id in favorites:
+            favorites.remove(car_id)
+        else:
+            favorites.append(car_id)
+        session['favorites'] = favorites
+        return redirect(safe_next(), code=303)
+
+    @app.get('/car/<int:car_id>')
+    def car_details(car_id):
+        car = get_car(car_id)
+        vote = db().execute('SELECT score FROM ratings WHERE car_id=? AND voter=?',
+                            (car_id, session.get('voter', ''))).fetchone()
+        return render_template('car.html', car=car, title=f"{car['brand']} {car['model']}", my_vote=vote['score'] if vote else None)
+
+    @app.post('/rate/<int:car_id>')
+    def rate_car(car_id):
+        get_car(car_id)
+        score = request.form.get('score', type=int)
+        if score not in range(1, 6):
+            abort(400, description='Выберите оценку от 1 до 5.')
+        if 'voter' not in session:
+            session['voter'] = secrets.token_hex(24)
+        db().execute('''INSERT INTO ratings(car_id,voter,score) VALUES (?,?,?)
+            ON CONFLICT(car_id,voter) DO UPDATE SET score=excluded.score''',
+                     (car_id, session['voter'], score))
+        db().commit()
+        return redirect(url_for('car_details', car_id=car_id), code=303)
+
+    @app.get('/buy/<int:car_id>')
+    def buy_car(car_id):
+        destination = drom_url(get_car(car_id))
+        if destination is None:
+            abort(404)
+        return redirect(destination)
+
+    @app.get('/about')
+    def about():
+        return render_template('about.html', title='Как работает подбор')
+
+    @app.get('/health')
+    def health():
+        db().execute('SELECT 1 FROM cars LIMIT 1').fetchone()
+        return {'status': 'ok'}
+
+    @app.errorhandler(400)
+    @app.errorhandler(404)
+    @app.errorhandler(413)
+    def error_page(error):
+        return render_template('error.html', title='Не удалось открыть страницу', error=error), error.code
+
+    return app
+
+
+app = create_app()
 
 if __name__ == '__main__':
-    port = int(os.environ.get('PORT', 5000))
-    app.run(host='0.0.0.0', port=port)
+    app.run(host='127.0.0.1', port=int(os.environ.get('PORT', 5000)))
