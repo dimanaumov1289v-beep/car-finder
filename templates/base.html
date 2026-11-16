@@ -1,0 +1,22 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="Подберите автомобиль по описанию на русском языке. Учебный каталог с понятными критериями и оценками дизайна.">
+  <title>{{ title }} · АвтоПоиск</title>
+  <link rel="icon" href="{{ url_for('static', filename='favicon.svg') }}" type="image/svg+xml">
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+<a class="skip" href="#main">Перейти к содержимому</a>
+<header class="header"><a class="logo" href="{{ url_for('home') }}"><span class="logo-mark" aria-hidden="true">а</span>авто<span class="muted">поиск</span><small>учебный проект</small></a>
+<nav aria-label="Основная навигация">
+<a href="{{ url_for('home') }}" {% if request.endpoint == 'home' %}aria-current="page"{% endif %}>Каталог</a>
+<a href="{{ url_for('about') }}" {% if request.endpoint == 'about' %}aria-current="page"{% endif %}>Как это работает</a>
+<a class="nav-favorites" href="{{ url_for('show_favorites') }}" {% if request.endpoint == 'show_favorites' %}aria-current="page"{% endif %}>Избранное <span>{{ favorites|length }}</span></a>
+</nav></header>
+<main id="main">{% block content %}{% endblock %}</main>
+<footer><a class="logo" href="{{ url_for('home') }}">автопоиск<span class="green">.</span></a><p>Учебный каталог · 32 модели · Без внешних AI-сервисов</p><a href="{{ url_for('about') }}">О данных и рейтинге ↗</a></footer>
+</body>
+</html>

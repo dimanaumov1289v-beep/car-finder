@@ -1,29 +1,8 @@
-<!DOCTYPE html>
-<html lang="ru">
-<head>
-    <meta charset="UTF-8">
-    <title>{{ car[1] }} {{ car[2] }}</title>
-    <style>
-        body { font-family: Arial, sans-serif; background-color: #1a1a1a; color: white; text-align: center; padding-top: 50px; }
-        .container { max-width: 600px; margin: 0 auto; background: #2a2a2a; padding: 30px; border-radius: 10px; box-shadow: 0 4px 10px rgba(0,0,0,0.5); text-align: left; }
-        h1 { text-align: center; color: #007bff; }
-        p { font-size: 18px; border-bottom: 1px solid #444; padding-bottom: 10px; }
-        .back-btn { display: block; text-align: center; margin-top: 20px; text-decoration: none; color: white; background: #007bff; padding: 10px; border-radius: 5px; }
-        .back-btn:hover { background: #0056b3; }
-    </style>
-</head>
-<body>
-    <div class="container">
-        <h1>{{ car[1] }} {{ car[2] }}</h1>
-        <p><strong>Страна:</strong> {{ car[3] }}</p>
-        <p><strong>Тип кузова:</strong> {{ car[4] }}</p>
-        <p><strong>Двигатель:</strong> {{ car[5] }} л.с.</p>
-        <p><strong>Объем двигателя:</strong> {{ car[6] }} л (0.0 — значит это электро).</p>
-        <p><strong>Тип топлива:</strong> {{ car[9] }}</p>
-        <p><strong>Оценка дизайна:</strong> {{ car[7] }} / 5</p>
-        <p><strong>Цена:</strong> {{ "{:,}".format(car[8]) }} руб.</p>
-        
-        <a href="/" class="back-btn">← Вернуться к поиску</a>
-    </div>
-</body>
-</html>
+{% extends 'base.html' %}
+{% block content %}
+<div class="detail-page"><a class="back" href="{{ url_for('home') }}">← К каталогу</a><p class="eyebrow">{{ car.country }} / {{ car.body_type }}</p><h1>{{ car.brand }} <span>{{ car.model }}</span></h1>
+<div class="detail-grid"><section class="panel"><h2>Характеристики</h2><dl class="detail-specs">{% for label, value in [('Кузов', car.body_type), ('Страна бренда', car.country), ('Мощность', car.engine_power|string + ' л.с.'), ('Тип двигателя', car.fuel_type), ('Объём двигателя', 'Не применяется' if car.fuel_type == 'Электро' else car.engine_volume|string + ' л'), ('Цена в учебной базе', car.price|rubles)] %}<div><dt>{{ label }}</dt><dd>{{ value }}</dd></div>{% endfor %}</dl><p class="data-note">Цена не является актуальной рыночной оценкой. Для покупки проверяйте год, комплектацию, состояние и реальные объявления.</p>
+<form action="{{ url_for('toggle_favorite', car_id=car.id) }}" method="post"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><input type="hidden" name="next" value="{{ request.path }}"><button class="button" type="submit">{{ '♥ Убрать из избранного' if car.id in favorites else '♡ Сохранить в избранное' }}</button></form></section>
+<section class="panel rating-panel"><p class="eyebrow">КАК ВАМ ДИЗАЙН?</p><div class="big-rating"><span>★</span> {{ '%.1f'|format(car.design_score) }}<small> / 5</small></div><h2>{{ 'Рейтинг посетителей' if car.votes else 'Демонстрационная оценка' }}</h2><p>{{ 'Количество оценок: ' + car.votes|string + '. Среднее арифметическое голосов посетителей.' if car.votes else 'Голосов пока нет. Балл задан автором учебной базы. Ваша оценка начнёт рейтинг посетителей.' }}</p>
+<form action="{{ url_for('rate_car', car_id=car.id) }}" method="post"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><fieldset><legend>{{ 'Ваша оценка: ' + my_vote|string + ' из 5. Можно изменить.' if my_vote else 'Оцените внешний вид от 1 до 5' }}</legend><div class="vote-options">{% for score in range(1,6) %}<label><input type="radio" name="score" value="{{ score }}" required {% if my_vote == score %}checked{% endif %}><span>{{ score }} <span aria-hidden="true">★</span></span></label>{% endfor %}</div></fieldset><button class="button" type="submit">Сохранить оценку</button></form><p class="data-note">Один голос на модель в этом браузере. Повторная оценка заменяет предыдущую. Это учебный опрос без проверки личности.</p></section></div></div>
+{% endblock %}
