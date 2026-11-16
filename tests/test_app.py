@@ -1,5 +1,6 @@
 """Регрессии поиска, рейтинга, избранного и HTTP-форм."""
 import re
+from contextlib import closing
 import tempfile
 import unittest
 from pathlib import Path
@@ -94,7 +95,7 @@ class AppTests(unittest.TestCase):
         return self.client.post(path, data=dict(csrf_token=self.csrf, **fields))
 
     def test_pages_render_and_health(self):
-        for path in ['/', '/search?query=красивая+Toyota', '/favorites', '/car/1', '/about', '/electric', '/cheap', '/buy/1', '/health']:
+        for path in ['/', '/search?query=красивая+Toyota', '/favorites', '/car/1', '/about', '/electric', '/cheap', '/health']:
             with self.subTest(path=path):
                 self.assertEqual(self.client.get(path, follow_redirects=True).status_code, 200)
         self.assertEqual(self.client.get('/health').json, {'status': 'ok'})
@@ -136,7 +137,7 @@ class AppTests(unittest.TestCase):
             token = s['csrf']
         second.post('/rate/1', data={'csrf_token': token, 'score': '5'})
         import sqlite3
-        with sqlite3.connect(self.database) as conn:
+        with closing(sqlite3.connect(self.database)) as conn:
             count, average = conn.execute('SELECT COUNT(*),AVG(score) FROM ratings WHERE car_id=1').fetchone()
         self.assertEqual((count, average), (2, 4.0))
         restarted = create_app(self.config).test_client()
@@ -157,6 +158,43 @@ class AppTests(unittest.TestCase):
         self.assertIn("default-src 'self'", response.headers['Content-Security-Policy'])
         self.assertEqual(self.client.get('/car/999').status_code, 404)
         self.assertEqual(self.client.get('/?sort=invalid').status_code, 200)
+
+    def test_buy_redirects_for_all_models(self):
+        from urllib.parse import urlsplit
+        from marketplace import DROM_PATHS
+        self.assertEqual(set(DROM_PATHS), {(c['brand'], c['model']) for c in CARS})
+        for car in CARS:
+            response = self.client.get(f"/buy/{car['id']}")
+            self.assertEqual(response.status_code, 302)
+            parts = urlsplit(response.location)
+            self.assertEqual((parts.scheme, parts.netloc), ('https', 'auto.drom.ru'))
+            self.assertFalse(parts.query or parts.fragment)
+        for car_id, expected in [(1, 'lada/2121_4x4_niva'), (7, 'moskvitch/3'),
+                                 (8, 'toyota/camry'), (13, 'nissan/gt-r'),
+                                 (16, 'mercedes-benz/s-class')]:
+            self.assertEqual(self.client.get(f'/buy/{car_id}').location,
+                             f'https://auto.drom.ru/{expected}/')
+        self.assertEqual(self.client.get('/buy/999').status_code, 404)
+
+    def test_buy_buttons_on_catalogue_details_and_favorites(self):
+        from html.parser import HTMLParser
+        class Links(HTMLParser):
+            def __init__(self):
+                super().__init__()
+                self.links = []
+            def handle_starttag(self, tag, attrs):
+                attrs = dict(attrs)
+                if tag == 'a' and attrs.get('href', '').startswith('/buy/'):
+                    self.links.append(attrs)
+        self.post('/favorite/8')
+        for page, count in [('/', 32), ('/car/8', 1), ('/favorites', 1)]:
+            parser = Links()
+            parser.feed(self.client.get(page).get_data(as_text=True))
+            self.assertEqual(len(parser.links), count)
+            for link in parser.links:
+                self.assertEqual(link['target'], '_blank')
+                self.assertIn('noopener', link['rel'])
+                self.assertIn('Дроме', link['aria-label'])
 
     def test_forms_have_no_external_assets(self):
         html = self.client.get('/').get_data(as_text=True)

@@ -979,3 +979,9 @@ footer p {
     transition:none!important;
   }
 }
+
+/* Ссылки на реальные объявления сохраняют доступ к странице модели. */
+.card-bottom { flex-wrap: wrap; }
+.card-actions, .detail-actions { display: flex; align-items: center; gap: 8px; }
+.detail-actions { flex-wrap: wrap; gap: 12px; }
+.buy-button { padding: 9px 12px; white-space: nowrap; }

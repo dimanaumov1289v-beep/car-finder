@@ -8,6 +8,7 @@ from urllib.parse import urlsplit
 
 from flask import Flask, abort, g, redirect, render_template, request, session, url_for
 from search import SORTS, parse_query, select_cars
+from marketplace import drom_url
 
 ROOT = Path(__file__).resolve().parent
 
@@ -191,9 +192,10 @@ def create_app(test_config=None):
 
     @app.get('/buy/<int:car_id>')
     def buy_car(car_id):
-        # Старый адрес продолжает работать, вымышленных ссылок на объявления нет.
-        get_car(car_id)
-        return redirect(url_for('car_details', car_id=car_id))
+        destination = drom_url(get_car(car_id))
+        if destination is None:
+            abort(404)
+        return redirect(destination)
 
     @app.get('/about')
     def about():
